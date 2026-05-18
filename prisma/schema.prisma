@@ -11,3 +11,31 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id String @id @default(cuid())
+  username String @unique
+  displayName String
+  email String? @unique
+  password String?
+  googleId String? @unique
+  avatarUrl String?
+  bio String?
+ 
+ sessions Session[]
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+
+ @@map("users") //renamimg the table
+
+}
+
+model Session {
+ id String @id @default(cuid())
+ userId String
+ expiresAt DateTime
+ User User @relation(fields: [userId], references: [id], onDelete: Cascade) //this connects the session to the user in one to many relationship
+ // we use on delete cascade to delete the session when the user is deleted
+
+ @@map("sessions") 
+}
