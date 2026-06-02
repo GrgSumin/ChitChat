@@ -43,7 +43,6 @@ export default async function Layout({
             <UserButton />
           </header>
 
-          {/* Desktop top bar: search + theme + avatar on right */}
           <div className="bg-card sticky top-0 z-10 hidden items-center gap-3 border-b px-5 py-3 md:flex">
             <SearchField />
             <ThemeToggle className="ms-auto" />

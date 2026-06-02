@@ -1,16 +1,19 @@
-import { validateRequest } from "@/auth";
+import Post from "@/components/posts/editor/Post";
+import PostEditor from "@/components/posts/editor/PostEditor";
+import prisma from "@/lib/prisma";
+import { postDataInclude } from "@/lib/types";
 
 export default async function Home() {
-  const { user } = await validateRequest();
-
+  const posts = await prisma.post.findMany({
+    include: postDataInclude,
+    orderBy: { createdAt: "desc" },
+  });
   return (
-    <div className="bg-card border-border rounded-2xl border p-8">
-      <h1 className="text-foreground mb-1 text-xl font-bold">
-        Welcome, {user?.displayName}
-      </h1>
-      <p className="text-muted-foreground text-sm">
-        You&apos;re signed in as @{user?.username}. Your feed will appear here.
-      </p>
+    <div className="flex flex-col gap-5">
+      <PostEditor />
+      {posts.map((post) => (
+        <Post key={post.id} post={post} />
+      ))}
     </div>
   );
 }
