@@ -23,6 +23,7 @@ model User {
   bio String?
  
  sessions Session[]
+ posts    Post[]
  createdAt DateTime @default(now())
  updatedAt DateTime @updatedAt
 
@@ -38,4 +39,16 @@ model Session {
  // we use on delete cascade to delete the session when the user is deleted
 
  @@map("sessions") 
+}
+
+model Post {
+  id String @id @default(cuid()) //automatically generate id
+  content String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("post")
+
 }
