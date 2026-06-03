@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import {
   Bell,
+  Bookmark,
   Compass,
   Home,
   LucideIcon,
@@ -23,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/explore", label: "Explore", icon: Compass },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/messages", label: "Messages", icon: MessageSquare },
+  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
 ];
 
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
