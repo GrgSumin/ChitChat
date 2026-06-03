@@ -35,7 +35,7 @@ export default async function Layout({
                   className="text-primary-foreground"
                 />
               </div>
-              <span className="text-foreground text-base font-bold tracking-tight">
+              <span className="text-foreground text-lg font-bold tracking-tight">
                 ChitChat
               </span>
             </Link>
@@ -49,7 +49,7 @@ export default async function Layout({
             <UserButton />
           </div>
 
-          <main className="mx-auto w-full max-w-3xl flex-1 p-5">
+          <main className="mx-auto w-full max-w-7xl flex-1 p-5">
             {children}
           </main>
         </div>
