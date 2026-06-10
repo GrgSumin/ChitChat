@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { toast } from "sonner";
 
-import { submitPost } from "./action";
 import { useSession } from "@/app/(main)/SessionProvider";
 import UserAvatar from "@/components/ui/UserAvatar";
 import { LoadingButton } from "@/components/ui/loadingButton";
+import useSubmitPostMutation from "./mutation";
 
 export default function PostEditor() {
   const { user } = useSession();
-  const [isPending, startTransition] = useTransition();
+  const mutation = useSubmitPostMutation();
+
   const [hasContent, setHasContent] = useState(false);
 
   const editor = useEditor({
@@ -41,16 +41,10 @@ export default function PostEditor() {
   function onSubmit() {
     const input = editor?.getText({ blockSeparator: "\n" })?.trim() || "";
     if (!input) return;
-
-    startTransition(async () => {
-      try {
-        await submitPost(input);
+    mutation.mutate(input, {
+      onSuccess: () => {
         editor?.commands.clearContent();
-        setHasContent(false);
-        toast.success("Post created");
-      } catch {
-        toast.error("Failed to create post");
-      }
+      },
     });
   }
 
@@ -69,7 +63,7 @@ export default function PostEditor() {
       </div>
       <div className="flex justify-end">
         <LoadingButton
-          loading={isPending}
+          loading={mutation.isPending}
           disabled={!hasContent}
           onClick={onSubmit}
           className="bg-primary text-primary-foreground hover:bg-primary/90 min-w-24 rounded-xl px-5 text-sm font-semibold"
