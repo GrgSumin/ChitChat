@@ -24,6 +24,8 @@ model User {
  
  sessions Session[]
  posts    Post[]
+ following Follow[] @relation("Following")
+ followers Follow[] @relation("Followers")
  createdAt DateTime @default(now())
  updatedAt DateTime @updatedAt
 
@@ -40,6 +42,18 @@ model Session {
 
  @@map("sessions") 
 }
+
+model Follow { 
+  followerId String
+  follower User @relation("Following",fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following User @relation("Followers",fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+
+}
+
 
 model Post {
   id String @id @default(cuid()) //automatically generate id
