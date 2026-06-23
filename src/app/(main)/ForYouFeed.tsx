@@ -1,7 +1,6 @@
 "use client";
 
 import InfiniteScrollContainer from "@/components/InfiniteScrollContainer";
-import DeletePostDialog from "@/components/posts/DeletePostDialog";
 import Post from "@/components/posts/editor/Post";
 import PostsLoader from "@/components/posts/PostLoader";
 import { Button } from "@/components/ui/button";
