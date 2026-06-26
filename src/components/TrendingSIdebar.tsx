@@ -8,6 +8,7 @@ import { unstable_cache } from "next/cache";
 import { formatNumber } from "@/lib/utils";
 import FollowButton from "./FollowButton";
 import { getUserDataSelect } from "@/lib/types";
+import UserTooltip from "./UserTooltip";
 
 export default function TrendingSidebar() {
   return (
@@ -40,20 +41,22 @@ async function PeopleToFollow() {
       <h2 className="text-foreground text-lg font-bold">People to follow</h2>
       {userToFollow.map((u) => (
         <div key={u.id} className="flex items-center justify-between gap-3">
-          <Link
-            href={`/users/${u.username}`}
-            className="flex min-w-0 items-center gap-3"
-          >
-            <UserAvatar avatarUrl={u.avatarUrl} className="flex-none" />
-            <div className="min-w-0">
-              <p className="text-foreground line-clamp-1 text-base font-medium break-all hover:underline">
-                {u.displayName}
-              </p>
-              <p className="text-muted-foreground line-clamp-1 text-sm break-all">
-                @{u.username}
-              </p>
-            </div>
-          </Link>
+          <UserTooltip user={u}>
+            <Link
+              href={`/users/${u.username}`}
+              className="flex min-w-0 items-center gap-3"
+            >
+              <UserAvatar avatarUrl={u.avatarUrl} className="flex-none" />
+              <div className="min-w-0">
+                <p className="text-foreground line-clamp-1 text-base font-medium break-all hover:underline">
+                  {u.displayName}
+                </p>
+                <p className="text-muted-foreground line-clamp-1 text-sm break-all">
+                  @{u.username}
+                </p>
+              </div>
+            </Link>
+          </UserTooltip>
           <FollowButton
             userId={u.id}
             initialState={{
