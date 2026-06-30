@@ -9,10 +9,10 @@ import { formatNumber } from "@/lib/utils";
 import UserAvatar from "@/components/ui/UserAvatar";
 import FollowButton from "@/components/FollowButton";
 import FollowerCount from "@/components/FollowerCount";
-import { Button } from "@/components/ui/button";
 import TrendingSidebar from "@/components/TrendingSIdebar";
 import UserPosts from "./UserPosts";
 import Linkify from "@/components/Linkiyfy";
+import EditProfileButton from "./EditProfileButton";
 
 interface PageProps {
   params: Promise<{ username: string }>;
@@ -117,7 +117,7 @@ async function UserProfile({ user, loggedInUserId }: UserProfileProps) {
           </div>
         </div>
         {user.id === loggedInUserId ? (
-          <Button>Edit Profile</Button>
+          <EditProfileButton user={user} />
         ) : (
           <FollowButton userId={user.id} initialState={followerInfo} />
         )}

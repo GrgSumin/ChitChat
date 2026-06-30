@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
     },
   },
   serverExternalPackages: ["@node-rs/argon2"],
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "**.ufs.sh" }, // v7 — the one you need
+      { protocol: "https", hostname: "utfs.io" }, // older URLs, optional
+    ],
+  },
 };
 
 export default nextConfig;

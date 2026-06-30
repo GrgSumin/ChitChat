@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from "./ReactQueryProvider";
+import { NextSSRPlugin } from "@uploadthing/react/next-ssr-plugin";
+import { extractRouterConfig } from "uploadthing/server";
+import { fileRouter } from "./api/uploadthing/core";
 
 const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -45,6 +48,7 @@ export default function RootLayout({
       )}
     >
       <body className="flex min-h-full flex-col">
+        <NextSSRPlugin routerConfig={extractRouterConfig(fileRouter)} />
         <ReactQueryProvider>
           <ThemeProvider
             attribute="class"
