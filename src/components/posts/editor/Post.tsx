@@ -2,11 +2,13 @@
 import Link from "next/link";
 import UserAvatar from "@/components/ui/UserAvatar";
 import { PostData } from "@/lib/types";
-import { formatRelativeDate } from "@/lib/utils";
+import { cn, formatRelativeDate } from "@/lib/utils";
 import { useSession } from "@/app/(main)/SessionProvider";
 import PostMoreButton from "../PostMoreButton";
 import Linkify from "@/components/Linkiyfy";
 import UserTooltip from "@/components/UserTooltip";
+import { Media } from "@/generated/prisma/client";
+import Image from "next/image";
 
 interface PostProps {
   post: PostData;
@@ -18,7 +20,7 @@ export default function Post({ post }: PostProps) {
   return (
     <article className="group/post bg-card border-border rounded-2xl border p-5 shadow-sm">
       <div className="flex justify-between gap-3">
-        <div className="flex gap-3">
+        <div className="flex min-w-0 flex-1 gap-3">
           <UserTooltip user={post.user}>
             <Link href={`/users/${post.user.username}`}>
               <UserAvatar avatarUrl={post.user.avatarUrl} size={40} />
@@ -48,6 +50,10 @@ export default function Post({ post }: PostProps) {
                 {post.content}
               </p>
             </Linkify>
+
+            {!!post.attachments.length && (
+              <MediaPreviews attachment={post.attachments} />
+            )}
           </div>
         </div>
         {post.user.id === user.id && (
@@ -59,4 +65,74 @@ export default function Post({ post }: PostProps) {
       </div>
     </article>
   );
+}
+interface MediaPreviewsProps {
+  attachment: Media[];
+}
+
+function MediaPreviews({ attachment }: MediaPreviewsProps) {
+  const multiple = attachment.length > 1;
+
+  return (
+    <div
+      className={cn(
+        "border-border bg-muted mt-3 grid gap-0.5 overflow-hidden rounded-2xl border",
+        multiple && "grid-cols-2",
+      )}
+    >
+      {attachment.map((m) => (
+        <MediaPreview key={m.id} media={m} multiple={multiple} />
+      ))}
+    </div>
+  );
+}
+
+interface MediaPreviewProps {
+  media: Media;
+  multiple: boolean;
+}
+
+function MediaPreview({ media, multiple }: MediaPreviewProps) {
+  if (media.type === "IMAGE") {
+    if (multiple) {
+      return (
+        <div className="relative aspect-square w-full">
+          <Image
+            src={media.url}
+            alt="attachment"
+            fill
+            sizes="(max-width: 640px) 50vw, 300px"
+            className="object-cover"
+          />
+        </div>
+      );
+    }
+    return (
+      <Image
+        src={media.url}
+        alt="attachment"
+        width={800}
+        height={800}
+        sizes="(max-width: 640px) 100vw, 600px"
+        className="mx-auto max-h-120 w-auto object-contain"
+      />
+    );
+  }
+
+  if (media.type === "VIDEO") {
+    if (multiple) {
+      return (
+        <div className="relative aspect-square w-full">
+          <video
+            src={media.url}
+            controls
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        </div>
+      );
+    }
+    return <video src={media.url} controls className="max-h-[30rem] w-full" />;
+  }
+
+  return <p className="text-destructive">Unsupported media type</p>;
 }

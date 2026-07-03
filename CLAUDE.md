@@ -32,7 +32,7 @@ This project uses **Next.js 16**, which has breaking changes from earlier versio
 
 ## Architecture
 
-ChitChat is a real-time chat application built with Next.js 16 (App Router, `src/` directory layout). The project is in early stage — scaffolded from create-next-app with key dependencies installed but most features not yet implemented.
+ChitChat is a Twitter-style social app built with Next.js 16 (App Router, `src/` directory layout). Implemented so far: email/password + Google OAuth auth, posts with a Tiptap editor, For You / Following feeds, follow/unfollow, user profiles with avatar upload, and hover-card user tooltips. Likes, comments, and DMs are not yet built (the `/messages` and `/notifications` routes are placeholders).
 
 **Package manager:** Yarn (yarn.lock present).
 
@@ -65,14 +65,27 @@ ChitChat is a real-time chat application built with Next.js 16 (App Router, `src
 - **Fonts:** Noto Sans (`--font-sans`, primary), Geist Sans, and Geist Mono are loaded via `next/font/google` in the root layout.
 - **Page titles:** Root layout uses a `title.template` of `"%s | Chitchat"` — individual pages only need to export their own title string.
 
+### Request & data-flow patterns
+
+These conventions span many files — follow them when adding features:
+
+- **Auth gate:** `validateRequest()` in `src/auth.ts` (a React-`cache`'d wrapper over Lucia session validation) is the single source of truth for the current user. The `(main)` route-group layout calls it and `redirect("/login")`s if there's no user, so all pages under it are auth-protected. Server actions and API routes each call `validateRequest()` again and throw / return 401 — never trust the layout gate alone.
+- **Reads (paginated feeds) go through API routes**, not server actions: `src/app/api/**/route.ts` handlers do cursor-based pagination (`take: pageSize + 1`, derive `nextCursor`, return a `PostsPage`), fetched client-side with ky (`src/lib/ky.ts`) + React Query `useInfiniteQuery`, rendered inside `InfiniteScrollContainer`.
+- **Writes go through server actions** (`"use server"` files named `action.ts`), wrapped in a React Query `useMutation` hook (`mutation.ts` / `mutaion.ts` — note the existing typo in `users/[username]/`). Mutations do **optimistic cache surgery**: they match queries by predicate on the shared `["post-feed", ...]` query key and patch `InfiniteData<PostsPage>` in place (see `components/posts/editor/mutation.ts`). New feeds must use compatible query keys to stay in sync.
+- **Prisma select/include shapes are centralized** in `src/lib/types.ts`: `getUserDataSelect(loggedInUserId)` / `getPostDataInclude(loggedInUserId)` return `satisfies`-typed selects (including a scoped `followers` where-clause used to compute `isFollowedByUser`, and `_count`). Reuse these everywhere you fetch a user/post so the derived `UserData` / `PostData` types stay accurate — don't hand-roll selects.
+- **Validation:** all input parsed with Zod schemas from `src/lib/validation.ts` (`requiredString` is the shared trimmed-non-empty base). Forms use react-hook-form + `@hookform/resolvers`.
+- **Session on the client:** `SessionProvider` (in `(main)`) exposes the validated user via `useSession()`.
+
 ### Database schema
 
-Two models currently defined in `prisma/schema.prisma`:
+Four models in `prisma/schema.prisma`:
 
-- **User** — `id` (cuid), `username` (unique), `displayName`, optional `email`/`password`/`googleId`/`avatarUrl`/`bio`, timestamps. Has many Sessions (cascade delete).
-- **Session** — `id` (cuid), `userId` (FK → User), `expiresAt`. Cascade-deleted with parent User.
+- **User** — `id` (cuid), `username` (unique), `displayName`, optional `email`/`password`/`googleId`/`avatarUrl`/`bio`, timestamps. Has many Sessions, Posts, and Follow rows on both sides.
+- **Session** — `id`, `userId` (FK → User), `expiresAt`. Cascade-deleted with parent User.
+- **Follow** — join table with composite `@@unique([followerId, followingId])`; `follower` uses the `"Following"` relation and `following` uses `"Followers"` (named relations because both FKs point at User).
+- **Post** — `id`, `content`, `userId` (FK → User), `createdAt`.
 
-Convention: models use `@@map("tablename")` to map PascalCase names to lowercase PostgreSQL table names (e.g., `User` → `users`).
+Convention: models use `@@map("tablename")` to map PascalCase names to lowercase PostgreSQL table names (e.g., `User` → `users`). Note `Post` maps to `post` (singular) while the others are plural. The generated client lives at `src/generated/prisma/` — import `Prisma`/types from `@/generated/prisma/client`.
 
 ### shadcn/ui conventions
 

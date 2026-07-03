@@ -30,6 +30,24 @@ export const fileRouter = {
       // hand the new URL back to the browser so the UI can show it
       return { avatarUrl: file.ufsUrl };
     }),
+  attachments: f({
+    image: { maxFileSize: "4MB", maxFileCount: 5 },
+    video: { maxFileSize: "1024MB", maxFileCount: 5 },
+  })
+    .middleware(async () => {
+      const { user } = await validateRequest();
+      if (!user) throw new UploadThingError("Unauthorized");
+      return { userID: user.id };
+    })
+    .onUploadComplete(async ({ file }) => {
+      const media = await prisma.media.create({
+        data: {
+          url: file.ufsUrl,
+          type: file.type.startsWith("image") ? "IMAGE" : "VIDEO",
+        },
+      });
+      return { mediaId: media.id };
+    }),
 } satisfies FileRouter;
 
 export type AppFileRouter = typeof fileRouter;

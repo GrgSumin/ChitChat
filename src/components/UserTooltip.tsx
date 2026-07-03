@@ -32,7 +32,9 @@ export default function UserTooltip({ children, user }: UserTooltipProps) {
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipTrigger asChild>
+          <span className="min-w-0">{children}</span>
+        </TooltipTrigger>
         <TooltipContent className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-4 text-sm">
           <div className="flex w-full flex-col gap-3 break-words">
             <div className="flex items-start justify-between gap-4">
