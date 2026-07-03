@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { ClipboardEvent, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ImageIcon, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { useDropzone } from "@uploadthing/react";
 
 export default function PostEditor() {
   const { user } = useSession();
@@ -26,6 +27,12 @@ export default function PostEditor() {
     removeAttachment,
     reset: resetMediaUpload,
   } = UseMediaUpload();
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: startUpload,
+  });
+
+  const { onClick, ...rootProps } = getRootProps();
 
   const [hasContent, setHasContent] = useState(false);
 
@@ -68,6 +75,13 @@ export default function PostEditor() {
     );
   }
 
+  function onPaste(e: ClipboardEvent<HTMLInputElement>) {
+    const files = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile()) as File[];
+    startUpload(files);
+  }
+
   return (
     <div className="bg-card border-border flex flex-col gap-3 rounded-2xl border p-5 shadow-sm">
       <div className="flex gap-4">
@@ -76,10 +90,17 @@ export default function PostEditor() {
           size={40}
           className="hidden sm:flex"
         />
-        <EditorContent
-          editor={editor}
-          className="bg-muted/40 border-border max-h-[20rem] w-full overflow-y-auto rounded-xl border px-4 py-3"
-        />
+        <div className="w-full" {...rootProps}>
+          <EditorContent
+            editor={editor}
+            className={cn(
+              "bg-muted/40 border-border max-h-[20rem] w-full overflow-y-auto rounded-xl border px-4 py-3",
+              isDragActive && "outline-dashed",
+            )}
+            onPaste={onPaste}
+          />
+          <input {...getInputProps()} />
+        </div>
       </div>
       {!!attachments.length && (
         <AttachmentPreviews
@@ -210,7 +231,7 @@ function AttachmentPreview({
       {!isUploading && (
         <button
           onClick={onRemoveClick}
-          className="bg-foreground text-background absolute top-3 right-3 rounded-full p-1.5 hover:bg-foreground/60 transition-colors"
+          className="bg-foreground text-background hover:bg-foreground/60 absolute top-3 right-3 rounded-full p-1.5 transition-colors"
         >
           <X size={20} />
         </button>
