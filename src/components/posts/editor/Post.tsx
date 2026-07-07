@@ -18,11 +18,19 @@ export default function Post({ post }: PostProps) {
   const { user } = useSession();
 
   return (
-    <article className="group/post bg-card border-border rounded-2xl border p-5 shadow-sm">
+    <article className="group/post bg-card border-border relative rounded-2xl border p-5 shadow-sm">
+      <Link
+        href={`/posts/${post.id}`}
+        className="absolute inset-0 z-0"
+        aria-label="View post"
+      />
       <div className="flex justify-between gap-3">
         <div className="flex min-w-0 flex-1 gap-3">
           <UserTooltip user={post.user}>
-            <Link href={`/users/${post.user.username}`}>
+            <Link
+              href={`/users/${post.user.username}`}
+              className="relative z-10"
+            >
               <UserAvatar avatarUrl={post.user.avatarUrl} size={40} />
             </Link>
           </UserTooltip>
@@ -32,7 +40,7 @@ export default function Post({ post }: PostProps) {
               <UserTooltip user={post.user}>
                 <Link
                   href={`/users/${post.user.username}`}
-                  className="text-foreground text-base font-medium hover:underline"
+                  className="text-foreground relative z-10 text-base font-medium hover:underline"
                 >
                   {post.user.displayName}
                 </Link>
@@ -41,12 +49,16 @@ export default function Post({ post }: PostProps) {
                 @{post.user.username}
               </span>
               <span className="text-muted-foreground text-sm">·</span>
-              <span className="text-muted-foreground text-sm">
+              <Link
+                href={`/posts/${post.id}`}
+                className="text-muted-foreground relative z-10 text-sm hover:underline"
+                suppressHydrationWarning
+              >
                 {formatRelativeDate(post.createdAt)}
-              </span>
+              </Link>
             </div>
             <Linkify>
-              <p className="text-foreground mt-2 text-sm break-words whitespace-pre-line">
+              <p className="text-foreground relative z-10 mt-2 w-fit text-sm break-words whitespace-pre-line">
                 {post.content}
               </p>
             </Linkify>
@@ -58,7 +70,7 @@ export default function Post({ post }: PostProps) {
         </div>
         {post.user.id === user.id && (
           <PostMoreButton
-            className="opacity-0 transition-opacity group-hover/post:opacity-100"
+            className="relative z-10 opacity-0 transition-opacity group-hover/post:opacity-100"
             post={post}
           />
         )}
@@ -76,7 +88,7 @@ function MediaPreviews({ attachment }: MediaPreviewsProps) {
   return (
     <div
       className={cn(
-        "border-border bg-muted mt-3 grid gap-0.5 overflow-hidden rounded-2xl border",
+        "border-border bg-muted relative z-10 mt-3 grid gap-0.5 overflow-hidden rounded-2xl border",
         multiple && "grid-cols-2",
       )}
     >
