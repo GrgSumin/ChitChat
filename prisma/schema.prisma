@@ -28,6 +28,7 @@ model User {
  followers Follow[] @relation("Followers")
  likes Like[]
  bookmarks BookMark[]
+ comments Comments[]
  createdAt DateTime @default(now())
  updatedAt DateTime @updatedAt
 
@@ -67,6 +68,8 @@ model Post {
   attachments Media[]
   likes Like[]
  bookmarks BookMark[]
+ comments Comments[]
+
 
   @@map("post")
 
@@ -87,6 +90,19 @@ model Media {
 enum MediaType {
   IMAGE
   VIDEO
+}
+model Comments {
+  id String @id @default(cuid()) //automatically generate id
+  content String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId String
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+ 
+  createdAt DateTime @default(now())
+
+  @@map("comments")
+ 
 }
 
 model Like {

@@ -37,3 +37,7 @@ export const updateUserProfileSchema = z.object({
   bio: z.string().max(1000, "Must be less that 1000 character"),
 });
 export type UpdateUserProfileValue = z.infer<typeof updateUserProfileSchema>;
+
+export const createCommentsSchema = z.object({
+  content: requiredString,
+});

@@ -11,6 +11,9 @@ import { Media } from "@/generated/prisma/client";
 import Image from "next/image";
 import LikeButton from "../LikeButton";
 import BookmarkButton from "../BookMarkButton";
+import { useState } from "react";
+import { MessageSquare } from "lucide-react";
+import Comments from "@/components/comments/Comments";
 
 interface PostProps {
   post: PostData;
@@ -18,6 +21,8 @@ interface PostProps {
 
 export default function Post({ post }: PostProps) {
   const { user } = useSession();
+
+  const [showComments, setShowComments] = useState<boolean>(false);
 
   return (
     <article className="group/post bg-card border-border relative rounded-2xl border p-5 shadow-sm">
@@ -79,13 +84,19 @@ export default function Post({ post }: PostProps) {
       </div>
       <hr className="border-border my-3" />
       <div className="relative z-10 flex w-full items-center justify-between gap-5">
-        <LikeButton
-          postId={post.id}
-          initialState={{
-            like: post._count.likes,
-            isLikedByUser: post.likes.some((like) => like.userId === user.id),
-          }}
-        />
+        <div className="flex items-center gap-5">
+          <LikeButton
+            postId={post.id}
+            initialState={{
+              like: post._count.likes,
+              isLikedByUser: post.likes.some((like) => like.userId === user.id),
+            }}
+          />
+          <CommentButton
+            post={post}
+            onClick={() => setShowComments(!showComments)}
+          />
+        </div>
         <BookmarkButton
           postId={post.id}
           initialState={{
@@ -95,6 +106,7 @@ export default function Post({ post }: PostProps) {
           }}
         />
       </div>
+      {showComments && <Comments post={post} />}
     </article>
   );
 }
@@ -167,4 +179,21 @@ function MediaPreview({ media, multiple }: MediaPreviewProps) {
   }
 
   return <p className="text-destructive">Unsupported media type</p>;
+}
+
+interface CommnetButtonProps {
+  post: PostData;
+  onClick: () => void;
+}
+
+function CommentButton({ post, onClick }: CommnetButtonProps) {
+  return (
+    <button onClick={onClick} className="flex items-center gap-2">
+      <MessageSquare className="size-5" />
+      <span className="text-sm font-medium tabular-nums">
+        {post._count.comments}{" "}
+        <span className="hidden sm:inline">comments</span>
+      </span>
+    </button>
+  );
 }
