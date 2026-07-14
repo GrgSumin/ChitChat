@@ -1,4 +1,4 @@
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "../generated/prisma/client";
 
 export function getUserDataSelect(loggedInUserId: string) {
   return {
@@ -126,4 +126,85 @@ export interface BookMarkInfo {
 
 export interface NotificationCountInfo {
   unreadCount: number;
+}
+
+export const chatUserSelect = {
+  id: true,
+  username: true,
+  displayName: true,
+  avatarUrl: true,
+} satisfies Prisma.UserSelect;
+export type ChatUser = Prisma.UserGetPayload<{ select: typeof chatUserSelect }>;
+
+export const messageInclude = {
+  sender: {
+    select: chatUserSelect,
+  },
+  attachments: true,
+} satisfies Prisma.MessageInclude;
+
+export type MessageData = Prisma.MessageGetPayload<{
+  include: typeof messageInclude;
+}>;
+
+export interface MessagesPage {
+  messages: MessageData[];
+  previousCursor: string | null;
+}
+
+export const chatInclude = {
+  participants: {
+    include: {
+      user: {
+        select: chatUserSelect,
+      },
+    },
+  },
+  messages: {
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    include: messageInclude,
+  },
+} satisfies Prisma.ChatInclude;
+
+export type ChatData = Prisma.ChatGetPayload<{
+  include: typeof chatInclude;
+}> & { unreadCount: number };
+
+export interface ChatsPage {
+  chats: ChatData[];
+  nextCursor: string | null;
+}
+
+export interface MessagesCountInfo {
+  unreadCount: number;
+}
+
+export interface TypingInfo {
+  chatId: string;
+  userId: string;
+  displayName: string;
+  isTyping: boolean;
+}
+
+export interface ClientToServerEvents {
+  "chat:create": (
+    data: { userIds: string[]; name?: string },
+    callback: (res: { chat?: ChatData; error?: string }) => void,
+  ) => void;
+  "message:send": (
+    data: { chatId: string; content: string; attachmentIds: string[] },
+    callback: (res: { error?: string }) => void,
+  ) => void;
+  "chat:read": (data: { chatId: string }) => void;
+  "typing:start": (data: { chatId: string }) => void;
+  "typing:stop": (data: { chatId: string }) => void;
+}
+export interface ServerToClientEvents {
+  "chat:new": (chat: ChatData) => void;
+  "message:new": (message: MessageData) => void;
+  typing: (data: TypingInfo) => void;
+  "presence:state": (onlineUserIds: string[]) => void;
+  "presence:online": (data: { userId: string }) => void;
+  "presence:offline": (data: { userId: string }) => void;
 }
