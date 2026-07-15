@@ -41,3 +41,14 @@ export type UpdateUserProfileValue = z.infer<typeof updateUserProfileSchema>;
 export const createCommentsSchema = z.object({
   content: requiredString,
 });
+
+export const createChatSchema = z.object({
+  userIds: z.array(requiredString).min(1, "Select at least one user"),
+  name: z.string().trim().optional(),
+});
+
+export const sendMessageSchema = z.object({
+  chatId: requiredString,
+  content: z.string().trim().max(2000),
+  attachmentIds: z.array(z.string()).max(5),
+});
