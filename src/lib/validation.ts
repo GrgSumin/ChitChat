@@ -43,8 +43,8 @@ export const createCommentsSchema = z.object({
 });
 
 export const createChatSchema = z.object({
-  userIds: z.array(requiredString).min(1, "Select at least one user"),
-  name: z.string().trim().optional(),
+  userIds: z.array(requiredString).min(1, "Select at least one user").max(20),
+  name: z.string().trim().max(50).optional(),
 });
 
 export const sendMessageSchema = z.object({

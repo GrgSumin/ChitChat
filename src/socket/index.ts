@@ -206,27 +206,35 @@ export function createSocketServer(httpServer: HttpServer) {
       }
     });
 
-    socket.on("chat:read", async ({ chatId }) => {
-      await prisma.chatParticipant.updateMany({
-        where: { chatId, userId },
-        data: { lastReadAt: new Date() },
-      });
+    socket.on("chat:read", async (data) => {
+      try {
+        if (!data || typeof data.chatId !== "string") return;
+        if (!socket.rooms.has(`chat:${data.chatId}`)) return; // members only
+        await prisma.chatParticipant.updateMany({
+          where: { chatId: data.chatId, userId },
+          data: { lastReadAt: new Date() },
+        });
+      } catch (error) {
+        console.error("chat:read error", error);
+      }
     });
 
-    socket.on("typing:start", ({ chatId }) => {
-      if (!socket.rooms.has(`chat:${chatId}`)) return; // members only
-      socket.to(`chat:${chatId}`).emit("typing", {
-        chatId,
+    socket.on("typing:start", (data) => {
+      if (!data || typeof data.chatId !== "string") return;
+      if (!socket.rooms.has(`chat:${data.chatId}`)) return; // members only
+      socket.to(`chat:${data.chatId}`).emit("typing", {
+        chatId: data.chatId,
         userId,
         displayName: socket.data.user.displayName,
         isTyping: true,
       });
     });
 
-    socket.on("typing:stop", ({ chatId }) => {
-      if (!socket.rooms.has(`chat:${chatId}`)) return; // members only
-      socket.to(`chat:${chatId}`).emit("typing", {
-        chatId,
+    socket.on("typing:stop", (data) => {
+      if (!data || typeof data.chatId !== "string") return;
+      if (!socket.rooms.has(`chat:${data.chatId}`)) return; // members only
+      socket.to(`chat:${data.chatId}`).emit("typing", {
+        chatId: data.chatId,
         userId,
         displayName: socket.data.user.displayName,
         isTyping: false,
