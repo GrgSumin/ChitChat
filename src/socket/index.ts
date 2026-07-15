@@ -214,6 +214,7 @@ export function createSocketServer(httpServer: HttpServer) {
     });
 
     socket.on("typing:start", ({ chatId }) => {
+      if (!socket.rooms.has(`chat:${chatId}`)) return; // members only
       socket.to(`chat:${chatId}`).emit("typing", {
         chatId,
         userId,
@@ -223,6 +224,7 @@ export function createSocketServer(httpServer: HttpServer) {
     });
 
     socket.on("typing:stop", ({ chatId }) => {
+      if (!socket.rooms.has(`chat:${chatId}`)) return; // members only
       socket.to(`chat:${chatId}`).emit("typing", {
         chatId,
         userId,
