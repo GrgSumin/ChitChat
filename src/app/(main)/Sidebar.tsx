@@ -7,11 +7,11 @@ import {
   Home,
   LucideIcon,
   MessageCircle,
-  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import NotificationsButton from "./NotificationsButton";
+import MessageButton from "./MessagesButton";
 
 export interface NavItem {
   href: string;
@@ -22,7 +22,6 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home", icon: Home },
   { href: "/explore", label: "Explore", icon: Compass },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
 ];
 
@@ -52,6 +51,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         );
       })}
       <NotificationsButton />
+      <MessageButton />
       {NAV_ITEMS.slice(2).map(({ href, label, icon: Icon }) => {
         const isActive = pathname.startsWith(href);
         return (

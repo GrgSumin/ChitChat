@@ -1,14 +1,10 @@
 import { Metadata } from "next";
+import Chat from "./Chat";
 
 export const metadata: Metadata = {
   title: "Messages",
 };
 
-export default function MessagesPage() {
-  return (
-    <div className="bg-card border-border rounded-2xl border p-8">
-      <h1 className="text-foreground text-xl font-bold">Messages</h1>
-      <p className="text-muted-foreground mt-1 text-sm">Coming soon.</p>
-    </div>
-  );
+export default function Page() {
+  return <Chat />;
 }
