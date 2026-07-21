@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { MessageCircle } from "lucide-react";
-import OAuthButtons from "../OAuthButtons";
 import LoginForm from "./LoginForm";
+import GoogleSigninButton from "./GoogleSignInButton";
 
 export const metadata: Metadata = {
   title: "Login",
@@ -32,10 +32,14 @@ function Login() {
           <p className="text-muted-foreground mb-6 text-sm">
             Sign in to your account to continue
           </p>
+          <GoogleSigninButton />
+          <div className="flex items-center gap-3">
+            <div className="bg-muted h-px flex-1" />
+            <span>OR</span>
+            <div className="bg-muted h-px flex-1" />
+          </div>
 
           <LoginForm />
-
-          <OAuthButtons />
 
           <p className="text-muted-foreground mt-6 text-center text-xs">
             Don&apos;t have an account?{" "}
