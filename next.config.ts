@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "**.ufs.sh" }, // v7 — the one you need
       { protocol: "https", hostname: "utfs.io" }, // older URLs, optional
+      { protocol: "https", hostname: "loremflickr.com" },
     ],
   },
 };
