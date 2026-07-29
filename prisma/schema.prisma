@@ -21,6 +21,7 @@ model User {
   googleId String? @unique
   avatarUrl String?
   bio String?
+  onboardedAt DateTime?
  
  sessions Session[]
  posts    Post[]
@@ -33,6 +34,9 @@ model User {
  issuedNotifications Notification[] @relation("Issuer")
  chatParticipants ChatParticipant[]
  sentMessages     Message[]
+  interests   UserInterest[]
+ impressions PostImpression[]
+ feedCaches  FeedCache[]
 
  createdAt DateTime @default(now())
  updatedAt DateTime @updatedAt
@@ -75,6 +79,8 @@ model Post {
  bookmarks BookMark[]
  comments Comments[]
  linkedNotifications Notification[]
+  hashtags    PostHashtag[]
+ impressions PostImpression[]
 
 
   @@map("post")
@@ -118,6 +124,8 @@ model Like {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   postId String
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+ createdAt DateTime @default(now()) // needed for the recommender's temporal train/test split
 
   @@unique([userId,postId])
   @@map("likes")
@@ -203,4 +211,61 @@ model Message {
 
   @@map("messages")
 
+}
+
+model Hashtag {
+  id        String         @id @default(cuid())
+  tag       String         @unique // lowercased, WITHOUT the leading '#'
+  createdAt DateTime       @default(now())
+  posts     PostHashtag[]
+  interests UserInterest[]
+
+  @@map("hashtags")
+}
+
+model PostHashtag {
+  postId    String
+  post      Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  hashtagId String
+  hashtag   Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, hashtagId])
+  @@index([hashtagId])
+  @@map("post_hashtags")
+}
+
+model UserInterest {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hashtagId String
+  hashtag   Hashtag  @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+  score     Float    @default(0) // how strongly this user likes this topic
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, hashtagId])
+  @@index([userId])
+  @@map("user_interests")
+}
+
+model PostImpression {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, postId])
+  @@index([userId, createdAt])
+  @@map("post_impressions")
+}
+
+model FeedCache {
+  userId      String
+  feed        String // "home" or "explore"
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postIds     String[] // the ranked list of post ids, in order
+  generatedAt DateTime @default(now())
+
+  @@id([userId, feed])
+  @@map("feed_cache")
 }

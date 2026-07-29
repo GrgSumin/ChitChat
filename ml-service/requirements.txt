@@ -1,0 +1,9 @@
+# Deliberately minimal. The recommender is hand-written NumPy -- no
+# scikit-surprise, no PyTorch, no scikit-learn. Every line of the maths is
+# visible in app/model_cf.py and app/model_content.py, which matters for a
+# dissertation defence.
+numpy==2.1.3
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+psycopg[binary]==3.2.3
+python-dotenv==1.0.1
