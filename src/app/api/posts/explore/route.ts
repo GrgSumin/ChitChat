@@ -9,13 +9,11 @@ import { getPostDataInclude, PostsPage } from "@/lib/types";
 import { NextRequest } from "next/server";
 
 /**
- * The blended home feed (report UC-07).
+ * The Explore feed: pure recommendations, no blending.
  *
- * Ranking comes from the Python ML service; this route only assembles and
- * hydrates. Note the two different pagination schemes below -- the ranked path
- * pages by INDEX into a cached ordered list, while the fallback keeps the
- * original post-id cursor. Both return the same `PostsPage` shape, so no client
- * component had to change.
+ * Unlike the home feed this EXCLUDES accounts the user already follows (the ML
+ * service applies that filter for `feed=explore`), because explore exists for
+ * discovery -- showing followed accounts here would just mirror the home feed.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -27,9 +25,8 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const rankedIds = await buildRankedIds(user.id, "home");
+    const rankedIds = await buildRankedIds(user.id, "explore");
 
-    // ---- ranked path -------------------------------------------------------
     if (rankedIds) {
       const start = parseIndexCursor(cursor);
       const pageIds = rankedIds.slice(start, start + pageSize);
@@ -43,10 +40,14 @@ export async function GET(req: NextRequest) {
       return Response.json(data);
     }
 
-    // ---- fallback: reverse-chronological -----------------------------------
-    // Reached when the ML service is down, still training, or returned nothing.
-    // The feed degrades to the old behaviour rather than failing.
+    // Fallback when the ML service is unavailable: show recent posts from
+    // accounts the user does NOT follow, which at least preserves explore's
+    // purpose (discovery) even without ranking.
     const posts = await prisma.post.findMany({
+      where: {
+        userId: { not: user.id },
+        user: { followers: { none: { followerId: user.id } } },
+      },
       include: getPostDataInclude(user.id),
       orderBy: { createdAt: "desc" },
       take: pageSize + 1,

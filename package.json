@@ -6,7 +6,9 @@
     "dev": "tsx server.ts",
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "tsx src/lib/recommendation/scripts/seed.ts",
+    "backfill:hashtags": "tsx src/lib/recommendation/scripts/backfillHashtags.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

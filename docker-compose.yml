@@ -1,0 +1,34 @@
+# Runs the Python recommendation service against the EXISTING chitchat database.
+#
+#   docker compose up --build ml
+#
+# The Next.js app is deliberately NOT containerised here. It runs through the
+# custom `server.ts` (Next + Socket.IO) via `yarn dev`, which is how this
+# project has always been developed -- containerising it would change the
+# workflow for no benefit.
+#
+# The database is likewise not defined here: the `chitchat-db` container
+# already exists and owns the data. This file only adds the ML service.
+
+services:
+  ml:
+    build: ./ml-service
+    environment:
+      # host.docker.internal reaches the host from inside the container, which
+      # is how we talk to the chitchat-db container published on host :5433.
+      DATABASE_URL: ${ML_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5433/chitchat}
+      ML_RETRAIN_INTERVAL: ${ML_RETRAIN_INTERVAL:-900}
+    ports:
+      # Host port 8001: 8000 is already taken by another local project's ML
+      # container. The container still listens on 8000 internally.
+      - "8001:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Persist the trained model so a restart does not have to retrain
+      # before it can serve.
+      - ml-models:/service/models
+    restart: unless-stopped
+
+volumes:
+  ml-models:
