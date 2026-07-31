@@ -1,19 +1,4 @@
-"""
-data.py
--------
-The data-access layer. Reads Postgres DIRECTLY with psycopg -- deliberately
-NOT through Prisma. Prisma is the web application's ORM; the ranking pipeline
-is a separate concern with a separate access path.
-
-IMPORTANT SQL NOTE: Prisma created this schema with camelCase column names,
-which Postgres folds to lowercase unless quoted. Every identifier below is
-therefore double-quoted ("userId", not userId). Dropping a quote gives you a
-confusing `column "userid" does not exist` error.
-
-Table names come from the @@map directives in prisma/schema.prisma:
-  users, post (SINGULAR), likes, bookmarks, comments,
-  hashtags, post_hashtags, user_interests, follows, feed_cache
-"""
+"""Data access: reads Postgres directly with psycopg, never through Prisma."""
 
 from __future__ import annotations
 
@@ -31,7 +16,7 @@ class Interaction:
 
     user_id: str
     post_id: str
-    kind: str  # "like" | "bookmark" | "comment"
+    kind: str
     created_at: datetime
 
 
@@ -47,20 +32,8 @@ def _connect():
     return psycopg.connect(DATABASE_URL)
 
 
-# --------------------------------------------------------------------------
-#  INTERACTIONS  (the training signal)
-# --------------------------------------------------------------------------
 def load_interactions() -> list[Interaction]:
-    """
-    All likes, bookmarks and comments as a single normalised event stream.
-
-    A user may both like AND bookmark the same post -- we keep both rows.
-    The weighting in model_cf.py then treats that pair as stronger evidence
-    than a lone like, which is exactly what we want.
-
-    Comments are aggregated to one row per (user, post): commenting five times
-    on a thread is one interest signal, not five.
-    """
+    """All likes, bookmarks and comments as a single normalised event stream."""
     sql = """
         SELECT "userId", "postId", 'like' AS kind, "createdAt"
         FROM likes
@@ -80,9 +53,6 @@ def load_interactions() -> list[Interaction]:
         ]
 
 
-# --------------------------------------------------------------------------
-#  CONTENT FEATURES
-# --------------------------------------------------------------------------
 def load_posts() -> list[PostMeta]:
     """Every post with its author, timestamp and hashtag ids."""
     sql = """
@@ -115,13 +85,7 @@ def load_hashtags() -> dict[str, str]:
 
 
 def load_user_interests() -> dict[str, dict[str, float]]:
-    """
-    Explicitly declared interests: {user_id: {hashtag_id: score}}.
-
-    These come from onboarding rather than behaviour, which is what makes them
-    valuable -- they are the ONLY signal available for a user who has not yet
-    engaged with anything (the cold-start case).
-    """
+    """Explicitly declared interests: {user_id: {hashtag_id: score}}."""
     out: dict[str, dict[str, float]] = {}
     with _connect() as conn, conn.cursor() as cur:
         cur.execute('SELECT "userId", "hashtagId", score FROM user_interests')
@@ -130,9 +94,6 @@ def load_user_interests() -> dict[str, dict[str, float]]:
     return out
 
 
-# --------------------------------------------------------------------------
-#  SOCIAL GRAPH  (used for filtering, not for scoring)
-# --------------------------------------------------------------------------
 def load_follows() -> dict[str, set[str]]:
     """{follower_id: {followed_id, ...}} -- lets the explore feed exclude
     accounts the user already follows."""
@@ -150,9 +111,6 @@ def load_user_ids() -> list[str]:
         return [r[0] for r in cur.fetchall()]
 
 
-# --------------------------------------------------------------------------
-#  SNAPSHOT  (one round-trip set, so training sees a consistent view)
-# --------------------------------------------------------------------------
 @dataclass
 class Snapshot:
     interactions: list[Interaction]

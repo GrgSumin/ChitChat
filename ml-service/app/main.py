@@ -1,27 +1,4 @@
-"""
-main.py
--------
-The serving layer: a FastAPI app that holds a trained Recommender in memory and
-answers ranking queries in milliseconds.
-
-    GET  /health                  is the service up, and is a model loaded?
-    GET  /recommend/{user_id}     ranked post ids for a user
-    GET  /similar/{post_id}       "more like this" via learned post vectors
-    GET  /metrics                 last offline evaluation
-    POST /train                   retrain now
-
-=========================  WHAT THIS RETURNS  =========================
-Ranked post IDs and scores -- NOT post content. The Next.js app hydrates the
-actual rows through Prisma using `getPostDataInclude`, so the permission rules,
-select shapes and relation counts stay defined in exactly one place. Duplicating
-that shape here would guarantee the two drift apart.
-
-=========================  CONCURRENCY  =========================
-Retraining rebinds `_state.rec` to a NEWLY built Recommender rather than
-mutating the live one. Readers therefore always see a fully consistent model:
-either the old one or the new one, never a half-retrained hybrid. This is why
-no lock is needed on the read path, which is the hot one.
-"""
+"""Serving layer: FastAPI app holding a trained Recommender, retrained in the background."""
 
 from __future__ import annotations
 
@@ -61,14 +38,14 @@ _train_lock = threading.Lock()
 def _retrain() -> None:
     """Train and atomically publish. Never raises into the caller's thread."""
     if not _train_lock.acquire(blocking=False):
-        return  # a training run is already in flight; skip this tick
+        return
     try:
         _state.training = True
         rec = train(verbose=False)
-        _state.rec = rec  # atomic rebind -- see module docstring
+        _state.rec = rec
         _state.trained_at = time.time()
         _state.last_error = None
-    except Exception as exc:  # noqa: BLE001 - a failed retrain must not kill the service
+    except Exception as exc:
         _state.last_error = f"{type(exc).__name__}: {exc}"
         print(f"[ml] retrain failed: {_state.last_error}")
     finally:
@@ -86,8 +63,6 @@ async def lifespan(app: FastAPI):
     stop = threading.Event()
 
     if RETRAIN_ON_STARTUP:
-        # Synchronous: the service should not report healthy while it still has
-        # nothing to serve.
         _retrain()
 
     thread = threading.Thread(target=_retrain_loop, args=(stop,), daemon=True)
@@ -98,9 +73,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="ChitChat Recommendation Service", version="1.0", lifespan=lifespan)
 
-# The Next.js server calls this service from the server side, so CORS is not
-# strictly required -- but it keeps /docs usable from a browser during
-# development. Tighten allow_origins before any real deployment.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -132,9 +104,6 @@ def recommend(
 ):
     rec = _state.rec
     if rec is None:
-        # 503 rather than an empty list: the caller must be able to tell
-        # "no model yet" apart from "no recommendations for you", because the
-        # first should trigger its reverse-chronological fallback.
         raise HTTPException(503, "Model not trained yet.")
 
     scored, weights = rec.recommend(user_id, feed=feed, n=n)

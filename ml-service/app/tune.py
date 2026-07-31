@@ -1,32 +1,4 @@
-"""
-tune.py
--------
-Hyper-parameter selection for the BPR model.
-
-=========================  WHY A THIRD SPLIT  =========================
-The obvious way to choose n_factors and the regularisation strength is to try
-several and keep whichever scores best on the test set. That is a mistake, and
-a well-known one: once the test set has influenced a modelling decision it is
-no longer held out, and the reported precision@k becomes optimistically biased.
-Any examiner who asks "how did you choose k=16?" would expose it immediately.
-
-So this module splits the TRAINING data again, temporally:
-
-    all interactions
-    |-- train (80%)                 |-- test (20%)  <- untouched here
-        |-- inner-train (80%)
-        |-- validation (20%)  <- hyper-parameters are chosen on THIS
-
-The test set is never loaded. Whatever grid search picks here is then fixed
-before evaluate.py runs, so the final numbers stay honest.
-
-=========================  WHAT WE ARE FIXING  =========================
-With ~1,000 interactions, 100 users and ~500 posts, a 32-factor model has
-roughly (100 + 500) * 32 ~ 19,000 free parameters. That is far more capacity
-than the data can support, and the symptom is unmistakable: training AUC
-saturates at 1.000 (perfect memorisation) while ranking quality on unseen
-interactions stays poor. The fix is less capacity and more regularisation.
-"""
+"""Hyper-parameter selection for the BPR model."""
 
 from __future__ import annotations
 
@@ -39,8 +11,6 @@ from app.data import Snapshot, load_snapshot
 from app.evaluate import ndcg_at_k, temporal_split
 from app.model_cf import BPRMatrixFactorization
 
-# Deliberately small, interpretable grid -- this is about escaping a clear
-# overfitting regime, not squeezing out the last 0.001.
 GRID = {
     "n_factors": [8, 16, 32],
     "reg": [0.01, 0.05, 0.1],
@@ -59,12 +29,10 @@ def _score_config(
     except ValueError:
         return 0.0
 
-    # What each user engaged with during validation = ground truth.
     relevant: dict[str, set[str]] = {}
     for x in validation:
         relevant.setdefault(x.user_id, set()).add(x.post_id)
 
-    # Exclude anything already engaged with in inner-train.
     seen: dict[str, set[str]] = {}
     for x in inner_train:
         seen.setdefault(x.user_id, set()).add(x.post_id)
@@ -73,7 +41,7 @@ def _score_config(
     for user_id, truth in relevant.items():
         raw = model.score_all(user_id)
         if raw is None:
-            continue  # cold-start user: CF has no opinion, skip
+            continue
         vec = hybrid.min_max(raw)
         already = seen.get(user_id, set())
         order = np.argsort(-vec)
@@ -90,7 +58,6 @@ def _score_config(
 def tune(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
     snapshot = snapshot or load_snapshot()
 
-    # Split once to isolate the test set, then split AGAIN inside train.
     train, _test = temporal_split(snapshot.interactions)
     inner_train, validation = temporal_split(train)
 
@@ -132,17 +99,7 @@ def tune(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
 def tune_weights(
     snapshot: Snapshot | None = None, step: float = 0.1, k: int = 10, verbose: bool = True
 ) -> dict:
-    """
-    Sweep the hybrid blend weights (w_content, w_cf, w_popularity) on the SAME
-    validation fold, and produce the sensitivity table the report needs.
-
-    This step is not optional. The three scorers do not contribute equally, and
-    which one dominates depends entirely on the dataset -- on sparse data the
-    content scorer carries the signal, while denser interaction data lets CF
-    take over. A blend fixed by intuition can easily perform WORSE than its own
-    best single component, which defeats the point of hybridising at all. The
-    weights have to be fitted, and fitted somewhere other than the test set.
-    """
+    """Sweep the hybrid blend weights (w_content, w_cf, w_popularity) on the SAME"""
     from app.recommender import Recommender
 
     snapshot = snapshot or load_snapshot()
@@ -164,8 +121,6 @@ def tune_weights(
         relevant.setdefault(x.user_id, set()).add(x.post_id)
     eval_users = [u for u, r in relevant.items() if r]
 
-    # Cache each user's component scores once -- they do not change as the
-    # weights vary, and recomputing them per grid point is the slow part.
     cached = {u: rec.component_scores(u) for u in eval_users}
     masks = {
         u: rec._eligibility_mask(u, feed="home", exclude_engaged=True)

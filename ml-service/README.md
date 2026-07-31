@@ -5,9 +5,11 @@ A Python service that ranks posts for ChitChat's Home and Explore feeds. It is a
 psycopg — it does not use Prisma.
 
 Ranking is produced by a **trained model**, not a SQL popularity formula:
-Bayesian Personalised Ranking matrix factorisation (BPR-MF), hand-written in
-NumPy, learns latent vectors for every user and post from the like / bookmark /
-comment matrix by stochastic gradient descent.
+Bayesian Personalised Ranking matrix factorisation (BPR-MF, Rendle et al. 2009)
+learns latent vectors for every user and post from the like / bookmark / comment
+matrix. The optimiser is the [`implicit`](https://github.com/benfred/implicit)
+library's Cython BPR; the hybrid combiner, TF-IDF content scorer, cold-start
+ladder and evaluation harness around it are bespoke.
 
 ## Architecture
 
@@ -19,7 +21,7 @@ Next.js /api/posts/for-you   /api/posts/explore
 ml-service (FastAPI + NumPy)         reads Postgres directly
    |
    +-- content scorer     TF-IDF over hashtags, cosine similarity
-   +-- collaborative      BPR-MF, learned by SGD
+   +-- collaborative      BPR-MF via the `implicit` library
    +-- popularity         time-decayed engagement (cold-start fallback)
    +-- weighted combiner  min-max normalise -> w1*c + w2*cf + w3*pop
    |

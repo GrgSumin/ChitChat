@@ -1,55 +1,4 @@
-"""
-evaluate.py
------------
-Offline evaluation. This module is what turns "I built a recommender" into
-"I can defend that this recommender works", which is the difference the
-dissertation is marked on.
-
-=========================  THE SPLIT  =========================
-A TEMPORAL split, not a random one. Interactions are sorted by timestamp; the
-oldest 80% train, the newest 20% test.
-
-This matters more than it looks. A random split lets the model train on a
-user's Friday behaviour and be tested on their Tuesday behaviour -- it has seen
-the future. Every reported number comes out flattering and none of it
-generalises to production, where you only ever have the past. A temporal split
-reproduces the real constraint, and scores from it are lower and honest.
-
-=========================  THE METRICS  =========================
-Ranking quality (users never see a predicted score, they see an ordered list):
-
-  precision@k -- of the k posts we showed, what fraction did they engage with?
-  recall@k    -- of everything they went on to engage with, what fraction did
-                 we surface in the top k?
-  NDCG@k      -- like precision but position-aware: a hit at rank 1 counts for
-                 more than a hit at rank 10, discounted by 1/log2(rank+1).
-
-Beyond accuracy (Herlocker et al., 2004, argue accuracy alone is insufficient
--- a recommender that shows everyone the same ten popular posts can score well
-and still be useless):
-
-  coverage@k  -- what fraction of the catalogue ever gets recommended? A high
-                 accuracy score with 2% coverage means a filter bubble.
-  novelty@k   -- mean self-information -log2(p(item)) of recommended items.
-                 High novelty = surfacing the long tail rather than the
-                 already-popular.
-
-=========================  THE BASELINES  =========================
-The hybrid has to BEAT something, or the number means nothing:
-
-  random      -- sanity floor. Anything not beating this is broken.
-  popularity  -- the honest strong baseline, and the one that matters most.
-                 It is not personalised at all. If the hybrid cannot beat
-                 "show everyone the popular posts", personalisation earned
-                 nothing and the project's central claim fails.
-  content     -- TF-IDF hashtag similarity alone.
-  cf          -- learned BPR alone.
-  hybrid      -- all three combined.
-
-READING THE RESULTS: if popularity scores near-perfect, that is not a triumph,
-it is a warning that the dataset is too easy to discriminate between methods.
-See the seed script's difficulty parameters.
-"""
+"""Offline evaluation: temporal split, ranking metrics, and baseline comparison."""
 
 from __future__ import annotations
 
@@ -67,9 +16,6 @@ from app.recommender import Recommender
 STRATEGIES = ["random", "popularity", "content", "cf", "hybrid"]
 
 
-# --------------------------------------------------------------------------
-#  SPLIT
-# --------------------------------------------------------------------------
 def temporal_split(
     interactions: list[Interaction], test_fraction: float = TEST_FRACTION
 ) -> tuple[list[Interaction], list[Interaction]]:
@@ -79,9 +25,6 @@ def temporal_split(
     return ordered[:cut], ordered[cut:]
 
 
-# --------------------------------------------------------------------------
-#  METRICS
-# --------------------------------------------------------------------------
 def dcg(relevances: list[int]) -> float:
     return sum(r / np.log2(rank + 2) for rank, r in enumerate(relevances))
 
@@ -125,9 +68,6 @@ class MetricAccumulator:
         }
 
 
-# --------------------------------------------------------------------------
-#  RANKING PER STRATEGY
-# --------------------------------------------------------------------------
 def _scores_for(
     rec: Recommender, user_id: str, strategy: str, rng: np.random.Generator
 ) -> np.ndarray:
@@ -156,9 +96,6 @@ def _scores_for(
     raise ValueError(f"unknown strategy {strategy}")
 
 
-# --------------------------------------------------------------------------
-#  MAIN EVALUATION
-# --------------------------------------------------------------------------
 def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
     snapshot = snapshot or load_snapshot()
     train, test = temporal_split(snapshot.interactions)
@@ -167,8 +104,6 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
         print(f"Dataset: {snapshot.summary()}")
         print(f"Temporal split: {len(train)} train / {len(test)} test interactions")
 
-    # Fit every scorer on TRAIN ONLY. Using the full snapshot here would leak
-    # the test interactions into the model and inflate every number below.
     train_snapshot = Snapshot(
         interactions=train,
         posts=snapshot.posts,
@@ -179,12 +114,10 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
     )
     rec = Recommender().fit(train_snapshot, verbose=verbose)
 
-    # Ground truth: what each user engaged with in the held-out period.
     relevant_by_user: dict[str, set[str]] = {}
     for x in test:
         relevant_by_user.setdefault(x.user_id, set()).add(x.post_id)
 
-    # Item self-information for the novelty metric, computed on TRAIN.
     total = max(len(train), 1)
     counts: dict[str, int] = {}
     for x in train:
@@ -197,8 +130,6 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
     max_k = max(EVAL_KS)
     rng = np.random.default_rng(SEED)
 
-    # Only evaluate users who actually have held-out ground truth AND whose
-    # relevant posts are in the catalogue -- otherwise recall is undefined.
     eval_users = [u for u, r in relevant_by_user.items() if r]
     if verbose:
         print(f"Evaluating {len(eval_users)} users with held-out interactions\n")
@@ -209,9 +140,6 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
         for user_id in eval_users:
             scores = _scores_for(rec, user_id, strategy, rng)
 
-            # Candidate filtering must match serving: no own posts, and no
-            # posts already engaged with during TRAIN (recommending those
-            # would be trivially "correct" and meaningless).
             mask = rec._eligibility_mask(user_id, feed="home", exclude_engaged=True)
             scores = np.where(mask, scores, -np.inf)
 
@@ -241,8 +169,6 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
         print(format_table(payload))
         print(interpret(payload))
 
-    # evaluate.py can be run before train.py has ever created models/, so make
-    # sure the directory exists rather than losing the results at the last step.
     os.makedirs(os.path.dirname(METRICS_PATH), exist_ok=True)
     with open(METRICS_PATH, "w") as f:
         json.dump(payload, f, indent=2)
@@ -250,9 +176,6 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
     return payload
 
 
-# --------------------------------------------------------------------------
-#  REPORTING
-# --------------------------------------------------------------------------
 def format_table(payload: dict) -> str:
     """Markdown table, ready to paste into the dissertation."""
     lines = []
@@ -272,10 +195,7 @@ def format_table(payload: dict) -> str:
 
 
 def interpret(payload: dict) -> str:
-    """
-    Flags the two failure modes that would invalidate the results, so they are
-    caught during development rather than in a viva.
-    """
+    """Flags the two failure modes that would invalidate the results, so they are"""
     k = EVAL_KS[1] if len(EVAL_KS) > 1 else EVAL_KS[0]
     res = payload["results"]
     pop = res["popularity"][str(k)]["precision"]

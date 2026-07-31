@@ -97,10 +97,17 @@ FastAPI + NumPy service that reads Postgres directly with psycopg (deliberately
 **not** through Prisma) and serves ranked post IDs over HTTP. See
 `ml-service/README.md` for full detail.
 
-- **The model is learned, not a formula.** `app/model_cf.py` implements Bayesian
-  Personalised Ranking matrix factorisation (BPR-MF) from scratch in NumPy: latent
-  user/post vectors trained by SGD on the implicit like/bookmark/comment matrix.
-  Signals are weighted (like 1.0, bookmark 1.5, comment 2.0) via sampling frequency.
+- **The model is learned, not a formula.** `app/model_cf.py` wraps the
+  [`implicit`](https://github.com/benfred/implicit) library's Bayesian Personalised
+  Ranking matrix factorisation (BPR-MF, Rendle et al. 2009): latent user/post vectors
+  learned from the implicit like/bookmark/comment matrix. The module owns the cuid↔index
+  mapping, pair de-duplication, `.npz` persistence and a post-training AUC check.
+  **Note:** `implicit`'s BPR samples uniformly over matrix non-zeros and ignores their
+  values, so signal weighting (like 1.0, bookmark 1.5, comment 2.0) applies in
+  `model_content.py` and `hybrid.py` — 0.80 of the blend — but **not** in CF.
+  `implicit` returns `factors + 1` columns, the last being the item bias, so
+  `score = Q @ P[u]` already includes it; `similar_posts` drops that column so
+  "more like this" is about topic rather than popularity.
 - **Hybrid of three scorers**, min–max normalised then blended:
   content (TF-IDF over hashtags, cosine) + collaborative (BPR) + popularity
   (time-decayed engagement). Popularity is a **cold-start fallback**, not the mechanism —

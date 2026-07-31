@@ -1,18 +1,4 @@
-"""
-train.py
---------
-Training entrypoint. Builds a Recommender from a fresh database snapshot and
-persists the learned BPR parameters.
-
-    python -m app.train            # train and save
-    python -m app.train --evaluate # train, save, then run the full evaluation
-
-WHAT IS AND IS NOT PERSISTED: only the BPR factors go to disk (model.npz).
-The content and popularity scorers are cheap closed-form computations over the
-current snapshot -- rebuilding them takes milliseconds and always reflects the
-latest posts, whereas a stale cached copy would quietly stop recommending new
-content. The expensive part is gradient descent, and that is what gets saved.
-"""
+"""Training entrypoint: builds a Recommender from a fresh snapshot and saves it."""
 
 from __future__ import annotations
 

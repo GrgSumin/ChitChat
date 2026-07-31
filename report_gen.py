@@ -115,6 +115,180 @@ def uc_table(rows):
         cells[0].paragraphs[0].runs[0].bold = True
     doc.add_paragraph()
 
+def uc_prose(num, title, actor, pre, post, alt):
+    """Short-form use case description (actor / pre / post / alternatives)."""
+    para(f"Use Case (UC{num}): {title}", bold=True)
+    para(f"Actor: {actor}")
+    para("Preconditions:")
+    for x in pre:
+        bullet(x)
+    para("Post-conditions:")
+    for x in post:
+        bullet(x)
+    para("Alternatives:")
+    for x in alt:
+        bullet(x)
+    doc.add_paragraph()
+
+
+para(
+    "The table below is expanded for the two most technically significant use "
+    "cases (UC7 and UC12). All use cases are first described in short form.",
+    italic=True,
+)
+
+_STABLE = "User must have a stable internet connection."
+_AUTH = "User must be logged in."
+
+USE_CASES = [
+    (1, "Register", "Visitor",
+     [_STABLE, "The registration page must be accessible.",
+      "The chosen username and email must not already be in use."],
+     ["A new user account is created and a session is started.",
+      "The user is redirected to the home feed."],
+     ["If the username or email is already taken, the form reports the conflict "
+      "and the user can choose another.",
+      "If validation fails, the user can correct the fields and resubmit."]),
+
+    (2, "Login with Email and Password", "Registered User",
+     [_STABLE, "User must have an existing account."],
+     ["A session cookie is issued and the user is redirected to the home feed."],
+     ["If the credentials are incorrect, an error is shown and the user can retry.",
+      "If the user has no password set (Google-only account), they are directed "
+      "to sign in with Google instead."]),
+
+    (3, "Login with Google", "Registered User, Google OAuth Provider",
+     [_STABLE, "User must have a Google account.",
+      "The application must be registered with Google and its redirect URI configured."],
+     ["The user is authenticated and a session is created. On first use a new "
+      "account is created from the Google profile."],
+     ["If the user cancels consent at Google, they are returned to the login page.",
+      "If Google is unreachable, an error is shown and the user can retry or use "
+      "email and password."]),
+
+    (4, "Edit Profile and Upload Avatar", "Registered User",
+     [_STABLE, _AUTH],
+     ["The user's display name, bio and avatar are updated and shown across the "
+      "application."],
+     ["If the upload fails, the previous avatar is retained and the user can retry.",
+      "If the image is too large, it is resized and cropped on the client before upload."]),
+
+    (5, "Create Post", "Registered User",
+     [_STABLE, _AUTH, "Post content must not be empty."],
+     ["The post is stored and appears immediately at the top of the author's feed.",
+      "Any hashtags in the content are extracted and linked to the post."],
+     ["If media upload fails, the user can remove the attachment and post text only.",
+      "If submission fails, the editor retains the content so nothing is lost."]),
+
+    (6, "Delete Post", "Registered User",
+     [_STABLE, _AUTH, "The post must exist and belong to the requesting user."],
+     ["The post and its associated likes, comments and bookmarks are removed."],
+     ["If the user is not the author, the request is rejected.",
+      "If deletion fails, the post remains and the user can retry."]),
+
+    (7, "View Recommended Home Feed", "Registered User, Recommendation Engine",
+     [_STABLE, _AUTH],
+     ["A blended feed of posts from followed accounts and personalised "
+      "recommendations is displayed with infinite scroll."],
+     ["If the user follows nobody, the feed is populated entirely from recommendations.",
+      "If the recommendation service is unavailable, the feed falls back to "
+      "reverse-chronological order so it remains usable."]),
+
+    (8, "View Explore Feed", "Registered User, Recommendation Engine",
+     [_STABLE, _AUTH],
+     ["A feed of recommended posts from accounts the user does not follow is displayed."],
+     ["If the recommendation service is unavailable, recent posts from "
+      "non-followed accounts are shown instead."]),
+
+    (9, "Like a Post", "Registered User",
+     [_STABLE, _AUTH, "The post must exist."],
+     ["The like is recorded, the like count updates immediately, and a "
+      "notification is sent to the post's author."],
+     ["Liking an already-liked post removes the like (toggle).",
+      "If the request fails, the optimistic count is rolled back."]),
+
+    (10, "Comment on a Post", "Registered User",
+     [_STABLE, _AUTH, "The post must exist.", "Comment content must not be empty."],
+     ["The comment is stored, appears in the comment list, and the post's author "
+      "receives a notification."],
+     ["If submission fails, the comment text is retained so the user can retry."]),
+
+    (11, "Start a Chat", "Registered User",
+     [_STABLE, _AUTH, "At least one other participant must be selected."],
+     ["A chat is created, both participants join its real-time room, and it "
+      "appears in their chat lists."],
+     ["If a one-to-one chat already exists between the two users, the existing "
+      "chat is opened instead of creating a duplicate.",
+      "A group chat may be created by selecting more than one participant."]),
+
+    (12, "Send Real-time Message", "Registered User (sender and recipient)",
+     [_STABLE, _AUTH, "A chat must exist and the sender must be a participant."],
+     ["The message is stored and delivered to all participants in real time, and "
+      "the chat list is reordered to show the most recent conversation first."],
+     ["If the sender is not a participant, the server rejects the message.",
+      "If the socket connection drops, the client reconnects and reloads recent "
+      "history."]),
+
+    (13, "View Typing Indicator and Online Presence", "Registered User",
+     [_STABLE, _AUTH, "An active socket connection must be established."],
+     ["Participants see when the other party is typing and whether they are online."],
+     ["If the connection is lost, users appear offline until it is re-established.",
+      "The typing indicator clears automatically if no further input is received."]),
+
+    (14, "Follow or Unfollow a User", "Registered User",
+     [_STABLE, _AUTH, "The target user must exist and must not be the requester."],
+     ["The follow relationship is created or removed, follower counts update, and "
+      "the home feed composition changes accordingly.",
+      "On follow, the target user receives a notification."],
+     ["If the request fails, the optimistic follower count is rolled back."]),
+
+    (15, "Bookmark a Post", "Registered User",
+     [_STABLE, _AUTH, "The post must exist."],
+     ["The post is saved to the user's bookmarks."],
+     ["Bookmarking an already-bookmarked post removes it (toggle)."]),
+
+    (16, "View Bookmarked Posts", "Registered User",
+     [_STABLE, _AUTH],
+     ["All posts the user has bookmarked are listed, newest first."],
+     ["If the user has no bookmarks, an empty-state message is shown."]),
+
+    (17, "Search Users and Hashtags", "Registered User",
+     [_STABLE, _AUTH, "A non-empty search query must be entered."],
+     ["Matching users and hashtags are displayed, with live suggestions shown as "
+      "the user types."],
+     ["If no results match, an empty-state message is shown.",
+      "If the request fails, the user can refine the query and retry."]),
+
+    (18, "View Hashtag Feed", "Registered User",
+     [_STABLE, _AUTH, "The hashtag must exist."],
+     ["All posts carrying the selected hashtag are displayed, newest first."],
+     ["If the hashtag has no posts, an empty-state message is shown."]),
+
+    (19, "Receive Notification", "Registered User",
+     [_STABLE, _AUTH],
+     ["A notification row is created when another user likes, comments on the "
+      "user's post, or follows them, and the unread badge count increases."],
+     ["Notifications are not created for a user's own actions.",
+      "If the count cannot be fetched, the badge is hidden rather than showing a "
+      "stale value."]),
+
+    (20, "Mark Notifications as Read", "Registered User",
+     [_STABLE, _AUTH, "At least one unread notification must exist."],
+     ["All notifications are marked read and the unread badge is cleared."],
+     ["If the request fails, the badge remains and is retried on the next poll."]),
+
+    (21, "Logout", "Registered User",
+     [_STABLE, _AUTH],
+     ["The session is invalidated, the session cookie is cleared, and the user is "
+      "redirected to the login page."],
+     ["If the session has already expired, the user is redirected to login anyway."]),
+]
+
+for uc in USE_CASES:
+    uc_prose(*uc)
+
+heading("Expanded Specifications", 3)
+
 para("UC-07: View Recommended Home Feed", bold=True)
 uc_table([
     ("Use Case ID", "UC-07"),
@@ -200,7 +374,7 @@ heading("Figure 6.1 — Recommendation System Concept (Hybrid)", 2)
 para("Three parallel scorers feeding a weighted combiner:")
 for x in [
     "Content-based scorer: cosine similarity between the user-interest profile and post tag vectors (TF-IDF over hashtags). Solves the item cold-start, since a brand-new post can be scored immediately.",
-    "Collaborative scorer: Bayesian Personalised Ranking matrix factorisation (BPR-MF) trained by stochastic gradient descent on the implicit like/bookmark/comment matrix.",
+    "Collaborative scorer: Bayesian Personalised Ranking matrix factorisation (BPR-MF, Rendle et al. 2009) learned from the implicit like/bookmark/comment matrix, using the `implicit` library's optimiser.",
     "Popularity scorer: signal-weighted engagement with exponential time decay — the fallback when a user has too little history for the learned model.",
     "Weighted combiner: each component min–max normalised to [0,1], then score = w1·content + w2·collaborative + w3·popularity → ranked feed.",
 ]:

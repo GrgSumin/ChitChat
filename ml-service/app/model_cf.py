@@ -1,85 +1,10 @@
-"""
-model_cf.py
------------
-Bayesian Personalised Ranking Matrix Factorisation (BPR-MF), implemented from
-scratch in NumPy. This is the LEARNED component of the recommender -- the part
-that is genuinely machine learning rather than a hand-tuned formula.
-
-=========================  THE ALGORITHM  =========================
-Every user u and every post i is represented by a latent vector of length k
-that the model LEARNS. A post also gets a scalar bias b_i. The score is:
-
-    s(u, i) = p_u . q_i + b_i
-
-Nobody tells the model what the k dimensions mean. They are discovered from
-the interaction matrix alone -- that is what makes this collaborative filtering
-rather than a rule.
-
-BPR does not try to predict a number. It optimises RANKING directly. For a
-user u who engaged with post i but not with post j, we want:
-
-    s(u, i) > s(u, j)
-
-Writing x_uij = s(u,i) - s(u,j), BPR maximises the log-likelihood of the
-observed orderings under a sigmoid, with L2 regularisation:
-
-    maximise  SUM over sampled triples  ln σ(x_uij)  -  λ(|p_u|² + |q_i|² + |q_j|²)
-
-Differentiating ln σ(x_uij) gives a gradient scaled by z = σ(-x_uij), which is
-large when the model has the pair the WRONG way round and near zero when it
-already has them comfortably ordered. So the model spends its effort on the
-pairs it currently gets wrong.
-
-    z    = σ(-x_uij)
-    p_u += lr * ( z * (q_i - q_j) - λ p_u )
-    q_i += lr * ( z * p_u         - λ q_i )
-    q_j += lr * ( z * (-p_u)      - λ q_j )
-    b_i += lr * ( z               - λ b_i )
-    b_j += lr * (-z               - λ b_j )
-
-=========================  WHY BPR  =========================
-The obvious alternative -- and the model in the reference project this service
-was adapted from -- is Funk-SVD, which minimises squared error against a known
-rating. That is the wrong tool here for a concrete reason: ChitChat has no
-ratings. A like is a 1, and the absence of a like is NOT a 0 -- it usually just
-means the user never saw the post. Squared-error MF is forced to treat every
-unobserved cell as a genuine negative, which biases it badly on implicit data.
-
-BPR instead makes only the weak, defensible assumption that an engaged post is
-preferred to a randomly drawn un-engaged one. It also optimises exactly the
-quantity the evaluation reports -- ranking quality (precision@k) -- rather than
-a rating error that users never see.
-
-Rejected alternatives, and why:
-  - Item-item KNN: O(n_posts²) similarity matrix, and it cannot generalise
-    beyond co-engagement it has literally observed. Fine as a BASELINE, and
-    evaluate.py includes it as one.
-  - Neural CF / two-tower: more capacity, but with ~1.3k interactions it would
-    overfit immediately, and it is far harder to defend in a viva than 100
-    lines of visible gradient descent.
-  - ALS with confidence weighting (Hu et al., 2008): a reasonable choice, but
-    it optimises a pointwise objective and needs matrix inversions; BPR is
-    simpler and ranks better at this data scale.
-
-=========================  SIGNAL WEIGHTING  =========================
-Likes, bookmarks and comments are not equally informative. Rather than invent
-a rating scale, we let the weight control HOW OFTEN a positive is sampled: a
-comment (weight 2.0) is drawn twice as often as a like (1.0), so the model sees
-it twice as much evidence. This keeps the objective a clean ranking loss while
-still respecting signal strength.
-
-=========================  A NOTE ON LOCAL WARNINGS  =========================
-On macOS, NumPy 2.x built against Apple's Accelerate BLAS emits spurious
-"divide by zero encountered in matmul" RuntimeWarnings. They fire on clean
-random data with no model involved (verifiable with a two-line repro), the
-results are finite and correct, and they do not occur in the Linux container,
-which uses OpenBLAS. Do not "fix" them by clamping the parameters -- there is
-nothing wrong with the parameters.
-"""
+"""Collaborative filtering: BPR-MF (Rendle et al. 2009) via the `implicit` library."""
 
 from __future__ import annotations
 
 import numpy as np
+from implicit.bpr import BayesianPersonalizedRanking
+from scipy.sparse import csr_matrix
 
 from app.config import (
     LEARNING_RATE,
@@ -88,9 +13,10 @@ from app.config import (
     NEG_SAMPLES,
     REGULARIZATION,
     SEED,
-    SIGNAL_WEIGHTS,
 )
 from app.data import Interaction
+
+MODEL_FORMAT_VERSION = 2
 
 
 class BPRMatrixFactorization:
@@ -110,28 +36,18 @@ class BPRMatrixFactorization:
         self.neg_samples = neg_samples
         self.seed = seed
 
-        # Learned parameters
-        self.P: np.ndarray | None = None  # (n_users, k) user latent vectors
-        self.Q: np.ndarray | None = None  # (n_posts, k) post latent vectors
-        self.b_i: np.ndarray | None = None  # (n_posts,) post biases
+        self.P: np.ndarray | None = None
+        self.Q: np.ndarray | None = None
 
-        # Id <-> contiguous index maps (cuids are strings; NumPy needs ints)
         self.user_to_idx: dict[str, int] = {}
         self.post_to_idx: dict[str, int] = {}
         self.idx_to_post: list[str] = []
 
-        # Per-user positive sets, used to avoid sampling a false negative.
         self.user_positives: dict[int, set[int]] = {}
 
         self.train_auc_history: list[float] = []
 
-    # ------------------------------------------------------------------ #
-    #  TRAINING
-    # ------------------------------------------------------------------ #
     def fit(self, interactions: list[Interaction], verbose: bool = True):
-        rng = np.random.default_rng(self.seed)
-
-        # --- 1) Index maps -------------------------------------------------
         users = sorted({x.user_id for x in interactions})
         posts = sorted({x.post_id for x in interactions})
         self.user_to_idx = {u: n for n, u in enumerate(users)}
@@ -145,127 +61,86 @@ class BPRMatrixFactorization:
                 f"({n_users} users, {n_posts} posts)."
             )
 
-        # --- 2) Positives + sampling weights -------------------------------
-        # Collapse duplicate (user, post) pairs by SUMMING their weights, so a
-        # post that was both liked and bookmarked outranks one merely liked.
-        pair_weight: dict[tuple[int, int], float] = {}
+        pairs: set[tuple[int, int]] = set()
         for x in interactions:
-            u = self.user_to_idx[x.user_id]
-            i = self.post_to_idx[x.post_id]
-            pair_weight[(u, i)] = pair_weight.get((u, i), 0.0) + SIGNAL_WEIGHTS.get(
-                x.kind, 1.0
-            )
+            pairs.add((self.user_to_idx[x.user_id], self.post_to_idx[x.post_id]))
 
-        pos_u = np.array([u for (u, _) in pair_weight], dtype=np.int64)
-        pos_i = np.array([i for (_, i) in pair_weight], dtype=np.int64)
-        weights = np.array(list(pair_weight.values()), dtype=np.float64)
-        sample_p = weights / weights.sum()  # weighted positive sampling
+        pos_u = np.fromiter((u for u, _ in pairs), dtype=np.int64, count=len(pairs))
+        pos_i = np.fromiter((i for _, i in pairs), dtype=np.int64, count=len(pairs))
 
         self.user_positives = {}
-        for u, i in pair_weight:
+        for u, i in pairs:
             self.user_positives.setdefault(u, set()).add(i)
 
-        # --- 3) Initialise -------------------------------------------------
-        # Small random values break symmetry; biases start at zero.
-        self.P = rng.normal(0, 0.1, (n_users, self.n_factors))
-        self.Q = rng.normal(0, 0.1, (n_posts, self.n_factors))
-        self.b_i = np.zeros(n_posts)
+        matrix = csr_matrix(
+            (np.ones(len(pairs), dtype=np.float32), (pos_u, pos_i)),
+            shape=(n_users, n_posts),
+        )
 
-        n_triples = len(pos_u) * self.neg_samples
+        model = BayesianPersonalizedRanking(
+            factors=self.n_factors,
+            learning_rate=self.lr,
+            regularization=self.reg,
+            iterations=self.n_epochs,
+            random_state=self.seed,
+            use_gpu=False,
+            num_threads=1,
+            verify_negative_samples=True,
+        )
+        model.fit(matrix, show_progress=False)
 
-        # --- 4) SGD over sampled triples -----------------------------------
-        for epoch in range(self.n_epochs):
-            # Draw this epoch's positives (weighted) and uniform negatives.
-            idx = rng.choice(len(pos_u), size=n_triples, p=sample_p)
-            u_arr = pos_u[idx]
-            i_arr = pos_i[idx]
-            j_arr = rng.integers(0, n_posts, size=n_triples)
+        self.P = np.asarray(model.user_factors, dtype=np.float64)
+        self.Q = np.asarray(model.item_factors, dtype=np.float64)
 
-            # Resample negatives that are actually positives for that user.
-            # Bounded retries: with ~600 posts and ~13 positives per user a
-            # collision is rare, so a few passes clears essentially all of them.
-            for _ in range(5):
-                clash = np.array(
-                    [
-                        j in self.user_positives.get(u, ())
-                        for u, j in zip(u_arr, j_arr)
-                    ]
-                )
-                if not clash.any():
-                    break
-                j_arr[clash] = rng.integers(0, n_posts, size=int(clash.sum()))
-
-            auc = self._sgd_epoch(u_arr, i_arr, j_arr)
-            self.train_auc_history.append(auc)
-
-            if verbose and (epoch % 10 == 0 or epoch == self.n_epochs - 1):
-                print(f"  epoch {epoch + 1:3d}/{self.n_epochs}  train AUC = {auc:.4f}")
+        auc = self._train_auc(pos_u, pos_i, n_posts)
+        self.train_auc_history = [auc]
+        if verbose:
+            print(f"  BPR trained: {n_users} users, {n_posts} posts, "
+                  f"{len(pairs)} pairs, train AUC = {auc:.4f}")
 
         return self
 
-    def _sgd_epoch(self, u_arr, i_arr, j_arr) -> float:
-        """
-        One vectorised pass. Returns training AUC -- the fraction of triples
-        already ranked correctly, which is BPR's natural progress measure
-        (0.5 = random, 1.0 = perfect separation).
+    def _train_auc(
+        self, pos_u: np.ndarray, pos_i: np.ndarray, n_posts: int, n_samples: int = 20_000
+    ) -> float:
+        """Fraction of sampled (user, positive, negative) triples the model already"""
+        if self.P is None or self.Q is None or len(pos_u) == 0:
+            return 0.0
 
-        np.add.at is used rather than `P[u] += ...` because a user can appear
-        many times in one batch; plain fancy-index assignment would keep only
-        the last write and silently drop most of the gradient.
-        """
-        P, Q, b = self.P, self.Q, self.b_i
+        rng = np.random.default_rng(self.seed)
+        idx = rng.integers(0, len(pos_u), size=min(n_samples, len(pos_u) * 10))
+        u_arr, i_arr = pos_u[idx], pos_i[idx]
+        j_arr = rng.integers(0, n_posts, size=len(idx))
 
-        p_u = P[u_arr]
-        q_i = Q[i_arr]
-        q_j = Q[j_arr]
-
-        x_uij = np.einsum("ij,ij->i", p_u, q_i - q_j) + b[i_arr] - b[j_arr]
-
-        # z = sigmoid(-x); computed in a numerically stable form.
-        z = np.where(
-            x_uij >= 0,
-            np.exp(-x_uij) / (1.0 + np.exp(-x_uij)),
-            1.0 / (1.0 + np.exp(x_uij)),
+        keep = np.array(
+            [j not in self.user_positives.get(u, ()) for u, j in zip(u_arr, j_arr)]
         )
-        z = z[:, None]  # column vector for broadcasting
+        if not keep.any():
+            return 0.0
+        u_arr, i_arr, j_arr = u_arr[keep], i_arr[keep], j_arr[keep]
 
-        grad_p = z * (q_i - q_j) - self.reg * p_u
-        grad_qi = z * p_u - self.reg * q_i
-        grad_qj = -z * p_u - self.reg * q_j
+        p_u = self.P[u_arr]
+        diff = np.einsum("ij,ij->i", p_u, self.Q[i_arr] - self.Q[j_arr])
+        return float((diff > 0).mean())
 
-        np.add.at(P, u_arr, self.lr * grad_p)
-        np.add.at(Q, i_arr, self.lr * grad_qi)
-        np.add.at(Q, j_arr, self.lr * grad_qj)
-        np.add.at(b, i_arr, self.lr * (z[:, 0] - self.reg * b[i_arr]))
-        np.add.at(b, j_arr, self.lr * (-z[:, 0] - self.reg * b[j_arr]))
-
-        return float((x_uij > 0).mean())
-
-    # ------------------------------------------------------------------ #
-    #  SCORING
-    # ------------------------------------------------------------------ #
     def knows_user(self, user_id: str) -> bool:
         return user_id in self.user_to_idx
 
     def score_all(self, user_id: str) -> np.ndarray | None:
-        """
-        Scores for EVERY post the model knows, in `idx_to_post` order.
-        Returns None for a cold-start user -- the caller then leans on the
-        content and popularity scorers instead of inventing a number.
-        """
-        if self.P is None or user_id not in self.user_to_idx:
+        """Scores for EVERY post the model knows, in `idx_to_post` order."""
+        if self.P is None or self.Q is None or user_id not in self.user_to_idx:
             return None
-        u = self.user_to_idx[user_id]
-        return self.Q @ self.P[u] + self.b_i
+        return self.Q @ self.P[self.user_to_idx[user_id]]
 
     def similar_posts(self, post_id: str, n: int = 10) -> list[tuple[str, float]]:
         """'More like this' via cosine similarity of learned post vectors."""
         if self.Q is None or post_id not in self.post_to_idx:
             return []
+        taste = self.Q[:, :-1]
         i = self.post_to_idx[post_id]
-        target = self.Q[i]
-        norms = np.linalg.norm(self.Q, axis=1) * np.linalg.norm(target) + 1e-9
-        sims = (self.Q @ target) / norms
+        target = taste[i]
+        norms = np.linalg.norm(taste, axis=1) * np.linalg.norm(target) + 1e-9
+        sims = (taste @ target) / norms
         order = np.argsort(-sims)
         out: list[tuple[str, float]] = []
         for idx in order:
@@ -276,26 +151,13 @@ class BPRMatrixFactorization:
                 break
         return out
 
-    # ------------------------------------------------------------------ #
-    #  PERSISTENCE
-    # ------------------------------------------------------------------ #
     def save(self, path: str) -> None:
-        """
-        Saved as .npz rather than pickle on purpose: unpickling executes
-        arbitrary code, so a pickled model file is a remote-code-execution
-        vector the moment anything untrusted can write to the models directory.
-
-        Note the id arrays use dtype "U" (fixed-width unicode), NOT dtype
-        object. Object arrays would round-trip through pickle internally and
-        force allow_pickle=True on load, which would reintroduce precisely the
-        risk this format was chosen to avoid. With "U" the file is pure numeric
-        + text data and loads with allow_pickle left off.
-        """
+        """Saved as .npz rather than pickle on purpose: unpickling executes"""
         np.savez_compressed(
             path,
+            format_version=MODEL_FORMAT_VERSION,
             P=self.P,
             Q=self.Q,
-            b_i=self.b_i,
             user_ids=np.array(list(self.user_to_idx.keys()), dtype="U"),
             post_ids=np.array(self.idx_to_post, dtype="U"),
             n_factors=self.n_factors,
@@ -304,12 +166,18 @@ class BPRMatrixFactorization:
 
     @classmethod
     def load(cls, path: str) -> "BPRMatrixFactorization":
-        # allow_pickle stays at its safe default of False -- see save().
         raw = np.load(path)
+
+        version = int(raw["format_version"]) if "format_version" in raw else 1
+        if version != MODEL_FORMAT_VERSION:
+            raise ValueError(
+                f"{path} is model format v{version}, this build expects "
+                f"v{MODEL_FORMAT_VERSION}. Delete it and retrain."
+            )
+
         model = cls(n_factors=int(raw["n_factors"]))
         model.P = raw["P"]
         model.Q = raw["Q"]
-        model.b_i = raw["b_i"]
         user_ids = [str(x) for x in raw["user_ids"]]
         post_ids = [str(x) for x in raw["post_ids"]]
         model.user_to_idx = {u: n for n, u in enumerate(user_ids)}
