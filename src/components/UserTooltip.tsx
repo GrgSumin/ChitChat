@@ -38,7 +38,10 @@ export default function UserTooltip({ children, user }: UserTooltipProps) {
         <TooltipContent className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-4 text-sm">
           <div className="flex w-full flex-col gap-3 break-words">
             <div className="flex items-start justify-between gap-4">
-              <Link href={`/users/${user.username}`}>
+              <Link
+                href={`/users/${user.username}`}
+                aria-label={`${user.displayName}'s profile`}
+              >
                 <UserAvatar size={60} avatarUrl={user.avatarUrl} />
               </Link>
               {loggedInUser.id !== user.id && (

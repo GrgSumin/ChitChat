@@ -37,6 +37,7 @@ export default function Post({ post }: PostProps) {
             <Link
               href={`/users/${post.user.username}`}
               className="relative z-10"
+              aria-label={`${post.user.displayName}'s profile`}
             >
               <UserAvatar avatarUrl={post.user.avatarUrl} size={40} />
             </Link>

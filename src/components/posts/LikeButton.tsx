@@ -54,7 +54,11 @@ export default function LikeButton({ postId, initialState }: LikeButtonProps) {
   });
 
   return (
-    <button onClick={() => mutate()} className="flex items-center gap-2">
+    <button
+      onClick={() => mutate()}
+      className="flex items-center gap-2"
+      aria-label={`${data.isLikedByUser ? "Unlike" : "Like"} post, ${data.like} likes`}
+    >
       <Heart
         className={cn(
           "size-5",

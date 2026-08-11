@@ -16,7 +16,10 @@ export default function Comment({ comment }: CommentProps) {
     <div className="group/comment flex gap-3 py-3">
       <span className="hidden sm:inline">
         <UserTooltip user={comment.user}>
-          <Link href={`/users/${comment.user.username}`}>
+          <Link
+            href={`/users/${comment.user.username}`}
+            aria-label={`${comment.user.displayName}'s profile`}
+          >
             <UserAvatar avatarUrl={comment.user.avatarUrl} size={40} />
           </Link>
         </UserTooltip>

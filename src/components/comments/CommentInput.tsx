@@ -43,6 +43,7 @@ export default function CommentInput({ post }: CommentInputProps) {
         variant="ghost"
         size="icon"
         disabled={!input.trim() || mutation.isPending}
+        aria-label="Post comment"
       >
         {!mutation.isPending ? (
           <SendHorizonal />

@@ -151,6 +151,7 @@ function AddAttachmentsButton({
         className="hover:text-primary"
         disabled={disabled}
         onClick={() => fileInputRef.current?.click()}
+        aria-label="Add photo or video"
       >
         <ImageIcon size={20} />
       </Button>

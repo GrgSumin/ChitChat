@@ -58,7 +58,11 @@ export default function BookmarkButton({
   });
 
   return (
-    <button onClick={() => mutate()} className="flex items-center gap-2">
+    <button
+      onClick={() => mutate()}
+      className="flex items-center gap-2"
+      aria-label={data.isBookMarkedByUser ? "Remove bookmark" : "Bookmark post"}
+    >
       <Bookmark
         className={cn(
           "size-5",
