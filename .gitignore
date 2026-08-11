@@ -51,3 +51,12 @@ prisma/seed-ground-truth.json
 
 # report build artefacts
 ~$*.docx
+
+# report / study material — generators and their .docx output stay local
+report_gen.py
+chapter2_gen.py
+diagram_guide_gen.py
+study_guide_gen.py
+*.docx
+MSc Student guidanceV2.html
+ml-service/tfidf_demo.py
