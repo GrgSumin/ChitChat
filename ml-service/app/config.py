@@ -33,7 +33,8 @@ POPULARITY_HALF_LIFE_DAYS = float(os.getenv("ML_POP_HALF_LIFE", 3.0))
 COLD_START_THRESHOLD = int(os.getenv("ML_COLD_START_THRESHOLD", 5))
 
 RETRAIN_INTERVAL_SECONDS = int(os.getenv("ML_RETRAIN_INTERVAL", 900))
-RETRAIN_ON_STARTUP = os.getenv("ML_RETRAIN_ON_STARTUP", "true").lower() == "true"
+RETRAIN_ON_STARTUP = os.getenv(
+    "ML_RETRAIN_ON_STARTUP", "true").lower() == "true"
 
 TEST_FRACTION = float(os.getenv("ML_TEST_FRACTION", 0.2))
 EVAL_KS = [5, 10, 20]

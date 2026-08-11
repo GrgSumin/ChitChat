@@ -44,7 +44,14 @@ class MetricAccumulator:
     recommended_items: dict[int, set[str]] = field(default_factory=dict)
     novelty: dict[int, list[float]] = field(default_factory=dict)
 
-    def add(self, k: int, recommended: list[str], relevant: set[str], item_pop: dict):
+    def add(
+        self,
+        k: int,
+        recommended: list[str],
+        relevant: set[str],
+        item_pop: dict,
+        max_novelty: float = 0.0,
+    ):
         top = recommended[:k]
         hits = len(set(top) & relevant)
         self.precision.setdefault(k, []).append(hits / k if k else 0.0)
@@ -52,8 +59,11 @@ class MetricAccumulator:
         self.ndcg.setdefault(k, []).append(ndcg_at_k(recommended, relevant, k))
         self.recommended_items.setdefault(k, set()).update(top)
         if top:
+            # A post with no training interactions is the MOST novel thing we can
+            # recommend, not the least -- defaulting to 0.0 would read as
+            # "maximally popular" and understate the novelty of exploratory lists.
             self.novelty.setdefault(k, []).append(
-                float(np.mean([item_pop.get(pid, 0.0) for pid in top]))
+                float(np.mean([item_pop.get(pid, max_novelty) for pid in top]))
             )
 
     def summarise(self, k: int, catalogue_size: int) -> dict[str, float]:
@@ -125,6 +135,10 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
     item_pop = {
         pid: float(-np.log2(c / total)) for pid, c in counts.items() if c > 0
     }
+    # Novelty for a post that never appeared in training: treat it as rarer than
+    # anything observed, i.e. the self-information of a single hypothetical
+    # interaction. Bounded rather than infinite, and never below the observed max.
+    max_novelty = float(-np.log2(1.0 / (total + 1)))
 
     catalogue = len(rec.post_ids)
     max_k = max(EVAL_KS)
@@ -146,7 +160,7 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
             order = np.argsort(-scores)[:max_k]
             ranked = [rec.post_ids[i] for i in order if np.isfinite(scores[i])]
             for k in EVAL_KS:
-                acc.add(k, ranked, relevant_by_user[user_id], item_pop)
+                acc.add(k, ranked, relevant_by_user[user_id], item_pop, max_novelty)
 
         results[strategy] = {
             str(k): acc.summarise(k, catalogue) for k in EVAL_KS
