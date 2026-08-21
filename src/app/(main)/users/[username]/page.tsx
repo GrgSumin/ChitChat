@@ -60,10 +60,10 @@ export default async function Page({ params }: PageProps) {
   const user = await getUser(username, loggedUser.id);
 
   return (
-    <div className="space-y- flex w-full min-w-0 gap-5">
+    <div className="flex w-full min-w-0 gap-5">
       <div className="w-full min-w-0 space-y-5">
         <UserProfile user={user} loggedInUserId={loggedUser.id} />
-        <div className="bg-card rounded-2xl p-5 shadow-sm">
+        <div className="bg-card border-border rounded-2xl border p-5 shadow-sm">
           <h2 className="text-center text-2xl font-bold">
             {user.displayName}&apos;s posts
           </h2>

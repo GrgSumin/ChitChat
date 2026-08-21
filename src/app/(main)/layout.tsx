@@ -7,7 +7,8 @@ import SearchField from "@/components/ui/SearchField";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import UserButton from "@/components/ui/UserButton";
 import Link from "next/link";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, SearchIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import SocketProvider from "@/components/SocketProvider";
 
 export default async function Layout({
@@ -41,6 +42,11 @@ export default async function Layout({
                   ChitChat
                 </span>
               </Link>
+              <Button variant="ghost" size="icon" asChild>
+                <Link href="/search" aria-label="Search">
+                  <SearchIcon className="size-5" />
+                </Link>
+              </Button>
               <ThemeToggle />
               <UserButton />
             </header>

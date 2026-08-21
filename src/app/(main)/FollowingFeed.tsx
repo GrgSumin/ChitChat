@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import kyInstance from "@/lib/ky";
 import { PostsPage } from "@/lib/types";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, Loader2, Users } from "lucide-react";
 
 export default function FollowingFeed() {
   const {
@@ -41,14 +41,14 @@ export default function FollowingFeed() {
     return (
       <div className="bg-card border-border flex flex-col items-center gap-3 rounded-2xl border p-10 text-center shadow-sm">
         <div className="bg-muted text-muted-foreground flex size-14 items-center justify-center rounded-full">
-          <Sparkles className="size-7" strokeWidth={1.5} />
+          <Users className="size-7" strokeWidth={1.5} />
         </div>
         <div>
           <p className="text-foreground text-base font-medium">
-            It&apos;s quiet in here
+            No posts from people you follow
           </p>
           <p className="text-muted-foreground mt-1 text-sm">
-            Be the first to share something with the world.
+            Follow a few people and their posts will show up here.
           </p>
         </div>
       </div>
@@ -64,7 +64,10 @@ export default function FollowingFeed() {
           <p className="text-foreground text-base font-medium">
             Something went wrong
           </p>
-          <p className="text-muted-foreground mt-1 text-sm">NO post found</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            We couldn&apos;t load your feed. Check your connection and try
+            again.
+          </p>
         </div>
         <Button variant="outline" onClick={() => refetch()}>
           Try again

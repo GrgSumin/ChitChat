@@ -96,7 +96,7 @@ async function TrendingTopics() {
   const trendingTopics = await getTrendingTopics();
   return (
     <div className="bg-card border-border space-y-5 rounded-2xl border p-5 shadow-sm">
-      <h2 className="text-foreground text-lg font-bold">TrendingTopics</h2>
+      <h2 className="text-foreground text-lg font-bold">Trending topics</h2>
       {trendingTopics.map(({ hashtag, count }) => {
         const title = hashtag.split("#")[1];
 

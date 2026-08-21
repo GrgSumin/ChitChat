@@ -1,10 +1,11 @@
 import { validateRequest } from "@/auth";
 import FollowButton from "@/components/FollowButton";
+import SearchField from "@/components/ui/SearchField";
 import UserAvatar from "@/components/ui/UserAvatar";
 import prisma from "@/lib/prisma";
 import { getUserDataSelect } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
-import { Hash } from "lucide-react";
+import { Hash, SearchX } from "lucide-react";
 import { Metadata } from "next";
 import Link from "next/link";
 
@@ -57,16 +58,20 @@ export default async function SearchPage({ searchParams }: PageProps) {
   return (
     <div className="w-full space-y-5">
       <div className="bg-card border-border rounded-2xl border p-5 shadow-sm">
-        <h1 className="text-foreground text-xl font-bold">
-          {" "}
+        <h1 className="text-foreground text-xl font-bold break-all">
           {query ? `Results for "${query}"` : "Search"}
         </h1>
+        {/* The header SearchField is desktop-only, so mobile needs its own
+            input here or this page would be unusable on a phone. */}
+        <div className="mt-3 md:hidden">
+          <SearchField />
+        </div>
+        {!query && (
+          <p className="text-muted-foreground mt-1 text-sm">
+            Type in the search bar to find people and hashtags.
+          </p>
+        )}
       </div>
-      {!query && (
-        <p className="text-muted-foreground px-1 text-sm">
-          Type in the search bar to find people and hastags
-        </p>
-      )}
 
       {users.length > 0 && (
         <section className="bg-card border-border space-y-4 rounded-2xl border p-5 shadow-sm">
@@ -127,9 +132,20 @@ export default async function SearchPage({ searchParams }: PageProps) {
       )}
 
       {query && !users.length && !hashtags.length && (
-        <p className="text-muted-foreground px-1 text-sm">
-          No people or hashtags found for &quot;{query}&quot;.
-        </p>
+        <div className="bg-card border-border flex flex-col items-center gap-3 rounded-2xl border p-10 text-center shadow-sm">
+          <div className="bg-muted text-muted-foreground flex size-14 items-center justify-center rounded-full">
+            <SearchX className="size-7" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-foreground text-base font-medium">
+              No results found
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              We couldn&apos;t find any people or hashtags for &quot;{query}
+              &quot;.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
