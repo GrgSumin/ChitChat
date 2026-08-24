@@ -106,7 +106,60 @@ def _scores_for(
     raise ValueError(f"unknown strategy {strategy}")
 
 
-def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
+def holdout_auc(
+    model,
+    train: list[Interaction],
+    test: list[Interaction],
+    n_negatives: int = 100,
+    seed: int = SEED,
+) -> dict:
+    """Fraction of (held-out positive, random negative) pairs the CF model ranks
+    the right way round.
+
+    BPR optimises pairwise order, so AUC measures exactly what it is trained to
+    do -- unlike precision@k, which only inspects the head of the list. This is
+    the TEST counterpart of `BPRMatrixFactorization._train_auc`: that one scores
+    pairs the model fitted on and is therefore optimistically biased, so the two
+    should never be quoted interchangeably.
+    """
+    # A post the user touched in EITHER split is a true positive. Sampling one as
+    # a "negative" would penalise the model for being right, so both splits feed
+    # the exclusion set.
+    touched: dict[str, set[str]] = {}
+    for x in train + test:
+        touched.setdefault(x.user_id, set()).add(x.post_id)
+
+    rng = np.random.default_rng(seed)
+    n_posts = len(model.idx_to_post)
+    wins = comparisons = skipped = 0
+
+    for x in test:
+        scores = model.score_all(x.user_id)
+        col = model.post_to_idx.get(x.post_id)
+        # Cold-start user, or a post created after the training cut -- the model
+        # has no vector for it, so there is nothing to score.
+        if scores is None or col is None:
+            skipped += 1
+            continue
+        positive = scores[col]
+        seen = touched.get(x.user_id, ())
+        for _ in range(n_negatives):
+            j = int(rng.integers(0, n_posts))
+            if model.idx_to_post[j] in seen:
+                continue
+            comparisons += 1
+            wins += positive > scores[j]
+
+    return {
+        "auc": round(wins / comparisons, 4) if comparisons else 0.0,
+        "comparisons": comparisons,
+        "skipped_test_rows": skipped,
+    }
+
+
+def evaluate(
+    snapshot: Snapshot | None = None, verbose: bool = True, full: bool = False
+) -> dict:
     snapshot = snapshot or load_snapshot()
     train, test = temporal_split(snapshot.interactions)
 
@@ -166,7 +219,19 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
             str(k): acc.summarise(k, catalogue) for k in EVAL_KS
         }
 
+    auc = (
+        holdout_auc(rec.cf, train, test)
+        if rec.cf is not None
+        else {"auc": 0.0, "comparisons": 0, "skipped_test_rows": len(test)}
+    )
+    auc["train_auc"] = (
+        round(rec.cf.train_auc_history[-1], 4)
+        if rec.cf is not None and rec.cf.train_auc_history
+        else None
+    )
+
     payload = {
+        "cf_auc": auc,
         "dataset": {
             "users": len(snapshot.user_ids),
             "posts": len(snapshot.posts),
@@ -180,7 +245,9 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
     }
 
     if verbose:
-        print(format_table(payload))
+        print(format_report(payload))
+        if full:
+            print(format_full(payload))
         print(interpret(payload))
 
     os.makedirs(os.path.dirname(METRICS_PATH), exist_ok=True)
@@ -188,6 +255,78 @@ def evaluate(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
         json.dump(payload, f, indent=2)
 
     return payload
+
+
+HEADLINE_K = 10
+
+
+def format_report(payload: dict) -> str:
+    """The two headline numbers and nothing else: accuracy, then precision.
+
+    Everything measured still lands in metrics.json, and `--full` prints the
+    complete grid; the default view stays short enough to actually read.
+    """
+    auc = payload["cf_auc"]
+    rule = "-" * 46
+
+    out = ["", rule, "  ACCURACY", rule]
+    if auc["train_auc"] is not None:
+        gap = auc["train_auc"] - auc["auc"]
+        out += [
+            f"  Train Accuracy:    {auc['train_auc']:.4f}",
+            f"  Test Accuracy:     {auc['auc']:.4f}",
+            f"  Overfitting Gap:   {gap:.4f}",
+        ]
+
+    out += ["", rule, "  RANKING", rule]
+
+    for k in EVAL_KS:
+        out += [
+            "",
+            f"  k = {k}",
+            f"  {'':<14}{'precision':>11}{'recall':>9}{'ndcg':>9}",
+        ]
+        for s in STRATEGIES:
+            m = payload["results"][s][str(k)]
+            out.append(
+                f"  {s:<14}{m['precision']:>11.4f}{m['recall']:>9.4f}"
+                f"{m['ndcg']:>9.4f}"
+            )
+
+    out.append("")
+    return "\n".join(out)
+
+
+def format_full(payload: dict) -> str:
+    """Every metric at every k -- the detail behind the headline figures."""
+    d = payload["dataset"]
+    rule = "=" * 66
+    out = [
+        "",
+        rule,
+        f"  FULL RANKING REPORT   ({d['evaluated_users']} users, "
+        f"{d['posts']} posts, {d['train']} train / {d['test']} test)",
+        rule,
+    ]
+    for k in EVAL_KS:
+        out += [
+            "",
+            f"  k = {k}",
+            f"  {'':<14}{'precision':>11}{'recall':>10}{'ndcg':>10}"
+            f"{'coverage':>11}{'novelty':>10}",
+        ]
+        for s in STRATEGIES:
+            m = payload["results"][s][str(k)]
+            marker = " *" if s == "hybrid" else "  "
+            out.append(
+                f"{marker}{s:<14}{m['precision']:>11.4f}{m['recall']:>10.4f}"
+                f"{m['ndcg']:>10.4f}{m['coverage']:>11.4f}{m['novelty']:>10.2f}"
+            )
+    out += ["", "  * the deployed model; the rows above it are baselines", ""]
+    return "\n".join(out)
+
+    out += ["", "  * the deployed model; the rows above it are baselines", ""]
+    return "\n".join(out)
 
 
 def format_table(payload: dict) -> str:
@@ -242,4 +381,13 @@ def interpret(payload: dict) -> str:
 
 
 if __name__ == "__main__":
-    evaluate()
+    import sys
+
+    # Apple's Accelerate BLAS raises overflow/invalid warnings on these matmuls
+    # even though every factor matrix and every score vector is finite (checked:
+    # 0/109 users produce a non-finite vector). They are artefacts of the vector
+    # lanes it reads past the end of the array, not of the maths, and they bury
+    # the actual report. Errors still surface -- only these warnings are muted.
+    np.seterr(over="ignore", invalid="ignore", divide="ignore")
+
+    evaluate(full="--full" in sys.argv)

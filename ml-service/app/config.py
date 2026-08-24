@@ -2,6 +2,17 @@
 
 import os
 
+from dotenv import load_dotenv
+
+# The Next.js app owns the single .env at the repo root, and DATABASE_URL lives
+# there. Under docker compose the variable is injected, but running the CLI
+# entrypoints directly (`python -m app.evaluate`) would otherwise fall through to
+# the placeholder below and fail authentication against a real database.
+# `override=False` keeps an explicitly exported variable winning over the file.
+load_dotenv(
+    os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=False
+)
+
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/chitchat"
 )
@@ -37,4 +48,4 @@ RETRAIN_ON_STARTUP = os.getenv(
     "ML_RETRAIN_ON_STARTUP", "true").lower() == "true"
 
 TEST_FRACTION = float(os.getenv("ML_TEST_FRACTION", 0.2))
-EVAL_KS = [5, 10, 20]
+EVAL_KS = [5, 10, 15, 20]
