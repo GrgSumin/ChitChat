@@ -454,6 +454,13 @@ async function main() {
     where: { username: { startsWith: "seed_" } },
   });
 
+  // Cached rankings belong to real accounts, so they survive the delete above
+  // while every post id inside them does not. The feed would then hydrate zero
+  // rows and render empty -- and because the cached list is non-empty, the
+  // reverse-chronological fallback never fires. Clear it here so `yarn seed` is
+  // sufficient on its own.
+  await prisma.feedCache.deleteMany({});
+
   const users = await createUsers();
   const posts = await createPosts(users);
   await createEngagement(users, posts);
