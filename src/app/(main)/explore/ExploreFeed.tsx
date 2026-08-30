@@ -31,6 +31,12 @@ export default function ExploreFeed() {
         .json<PostsPage>(),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    // See ForYouFeed: the ranking is rebuilt within about a second of an
+    // interaction, so the feed should refetch on return rather than serving a
+    // pre-interaction ordering.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 
   const posts = data?.pages.flatMap((page) => page.posts) || [];

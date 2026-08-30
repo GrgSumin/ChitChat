@@ -29,6 +29,14 @@ export default function ForYouFeed() {
         .json<PostsPage>(),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    // Liking a post clears the server-side ranking cache and triggers a
+    // retrain, so a fresh ranking is usually ready within a second. Treating
+    // the feed as immediately stale means returning to it -- by navigating
+    // back or refocusing the tab -- picks that up instead of serving the
+    // ranking from before the interaction.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
   });
 
   const posts = data?.pages.flatMap((page) => page.posts) || [];

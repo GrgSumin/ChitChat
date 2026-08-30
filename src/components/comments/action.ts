@@ -2,6 +2,7 @@
 
 import { validateRequest } from "@/auth";
 import prisma from "@/lib/prisma";
+import { invalidateFeedCache } from "@/lib/recommendation/feed";
 import { getCommentDataInclude, PostData } from "@/lib/types";
 import { createCommentsSchema } from "@/lib/validation";
 
@@ -41,6 +42,8 @@ export async function submitCommnet({
       : []),
   ]);
 
+  await invalidateFeedCache(user.id);
+
   return newComment;
 }
 
@@ -60,5 +63,8 @@ export async function deleteComment(id: string) {
     where: { id },
     include: getCommentDataInclude(user.id),
   });
+
+  await invalidateFeedCache(user.id);
+
   return deletedComment;
 }

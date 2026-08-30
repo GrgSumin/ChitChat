@@ -1,5 +1,6 @@
 import { validateRequest } from "@/auth";
 import prisma from "@/lib/prisma";
+import { invalidateFeedCache } from "@/lib/recommendation/feed";
 import { BookMarkInfo } from "@/lib/types";
 
 export async function GET(
@@ -59,6 +60,9 @@ export async function POST(
       },
       update: {},
     });
+
+    await invalidateFeedCache(loggedInUser.id);
+
     return new Response();
   } catch (error) {
     console.log(error);
@@ -82,6 +86,9 @@ export async function DELETE(
         postId,
       },
     });
+
+    await invalidateFeedCache(loggedInUser.id);
+
     return new Response();
   } catch (error) {
     console.log(error);

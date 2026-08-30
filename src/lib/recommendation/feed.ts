@@ -1,6 +1,10 @@
 import prisma from "@/lib/prisma";
 import { getPostDataInclude, PostData } from "@/lib/types";
-import { fetchRecommendations, RecommendationFeed } from "./client";
+import {
+  fetchRecommendations,
+  RecommendationFeed,
+  requestRetrain,
+} from "./client";
 
 /**
  * Shared feed assembly for the ranked feeds.
@@ -18,8 +22,14 @@ import { fetchRecommendations, RecommendationFeed } from "./client";
  * scrolling. `FeedCache` pins the ordering for the duration of a scroll.
  */
 
-/** How long a cached ranking stays valid before it is rebuilt. */
-const FEED_CACHE_TTL_MS = 10 * 60 * 1000;
+/**
+ * How long a cached ranking stays valid before it is rebuilt.
+ *
+ * Two minutes rather than ten: rebuilding costs one call to the ML service,
+ * which trains the whole model in under 200ms at this dataset size, so a long
+ * TTL buys very little and delays every ranking change by up to ten minutes.
+ */
+const FEED_CACHE_TTL_MS = 2 * 60 * 1000;
 
 /** How many ranked ids to request from the ML service in one go. */
 const RANKED_LIST_SIZE = 300;
@@ -92,6 +102,27 @@ async function writeCache(userId: string, feed: string, postIds: string[]) {
     create: { userId, feed, postIds, generatedAt: new Date() },
     update: { postIds, generatedAt: new Date() },
   });
+}
+
+/**
+ * Drop this user's cached rankings so the next feed request rebuilds.
+ *
+ * Called after a like, bookmark or comment. Without it the ranking a user sees
+ * cannot change until the TTL expires, however recently the model retrained.
+ *
+ * Never throws: failing to clear a cache must not fail the write that
+ * triggered it. The worst case is the user waits out the TTL.
+ */
+export async function invalidateFeedCache(userId: string): Promise<void> {
+  try {
+    await prisma.feedCache.deleteMany({ where: { userId } });
+  } catch (error) {
+    console.warn("[recommendation] failed to clear feed cache", error);
+  }
+  // Clearing the cache only forces a rebuild; the model still has to learn
+  // from the interaction before the ranking can actually change. Trigger that
+  // now rather than waiting out the retrain interval.
+  requestRetrain();
 }
 
 /** Recent posts from accounts this user follows, newest first. */
