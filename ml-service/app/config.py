@@ -43,6 +43,21 @@ POPULARITY_HALF_LIFE_DAYS = float(os.getenv("ML_POP_HALF_LIFE", 3.0))
 
 COLD_START_THRESHOLD = int(os.getenv("ML_COLD_START_THRESHOLD", 5))
 
+# Maximal Marginal Relevance (Carbonell & Goldstein, 1998). Ranking purely by
+# score gives a user whose history is 11 music and 6 tech a feed of 10 music
+# posts, because every slot is won by whatever sits closest to their profile
+# centroid. MMR subtracts a penalty for resembling what has already been
+# picked, so a minority interest wins a slot once the majority one is
+# well represented.
+#
+# LAMBDA is the trade-off: 1.0 is pure relevance (the old behaviour), 0.0 is
+# pure diversity and ignores the scores entirely. 0.75 keeps the dominant
+# interest dominant while leaving room for the rest.
+MMR_LAMBDA = float(os.getenv("ML_MMR_LAMBDA", 0.75))
+
+# MMR is O(k * pool), so it re-ranks a shortlist rather than all 619 posts.
+MMR_POOL = int(os.getenv("ML_MMR_POOL", 400))
+
 # Two minutes, not the fifteen a production recommender would use. A full
 # retrain -- snapshot load plus all three scorers -- measures under 200ms on
 # this dataset, so 900s was ~100x more conservative than the data warrants and
