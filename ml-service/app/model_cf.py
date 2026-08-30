@@ -1,3 +1,4 @@
+"""Collaborative filtering: BPR-MF (Rendle et al. 2009) via the `implicit` library."""
 
 from __future__ import annotations
 

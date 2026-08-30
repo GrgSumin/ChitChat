@@ -1,4 +1,4 @@
-
+"""Content-based scoring over hashtags, using TF-IDF vectors and cosine similarity."""
 
 from __future__ import annotations
 
