@@ -11,7 +11,6 @@ BEHAVIOUR_ALPHA = 0.7
 
 
 def _unit(vec: np.ndarray) -> np.ndarray:
-    """Scale to unit length, leaving an all-zero vector alone."""
     norm = np.linalg.norm(vec)
     return vec / norm if norm > 0 else vec
 
@@ -75,9 +74,6 @@ class ContentScorer:
             return {}
         n_tags = self.post_vectors.shape[1]
 
-        # Keep each engaged post's vector rather than only a running sum: the
-        # interests have to be separated below, which the sum has already
-        # destroyed.
         engaged: dict[str, list[tuple[float, np.ndarray]]] = {}
         behaviour: dict[str, np.ndarray] = {}
         weight_sum: dict[str, float] = {}
@@ -116,9 +112,6 @@ class ContentScorer:
             d = declared.get(uid)
             if d is not None:
                 if interests:
-                    # Declared interests are a single stated preference, so they
-                    # blend into each learned interest rather than becoming a
-                    # separate one competing with observed behaviour.
                     interests = [
                         (share, _unit(BEHAVIOUR_ALPHA * vec + (1 - BEHAVIOUR_ALPHA) * d))
                         for share, vec in interests
@@ -136,25 +129,7 @@ class ContentScorer:
         threshold: float = 0.30,
         max_interests: int = 4,
     ) -> list[tuple[float, np.ndarray]]:
-        """Separate a user's engagement into distinct interests.
-
-        A single averaged profile cannot represent someone who likes two
-        different things. Averaging 11 music posts with 6 tech posts produces a
-        vector that leans music, so tech posts score poorly against it and never
-        reach the feed -- the minority interest disappears entirely rather than
-        appearing less often.
-
-        This groups the engaged posts by similarity instead, and returns one
-        unit vector per group alongside its share of the user's total
-        engagement. Scoring can then represent each interest on its own terms
-        while keeping them proportional.
-
-        Leader clustering rather than k-means: it needs no k, no random
-        initialisation, and is deterministic, which matters because the model is
-        retrained constantly and the ordering should not jitter between runs.
-        Posts are processed heaviest-first so a comment seeds a group ahead of a
-        like.
-        """
+        """Group a user's engagement into separate interests by similarity."""
         if not engaged:
             return []
 
@@ -192,25 +167,13 @@ class ContentScorer:
     def score_all(
         self, profile: list[tuple[float, np.ndarray]] | np.ndarray | None
     ) -> np.ndarray:
-        """Score every post against the user's interests, in `idx_to_post` order.
-
-        A post is scored against whichever of the user's interests it matches
-        best, scaled by that interest's share of their engagement. So for
-        someone who is two-thirds music and one-third tech, a strong tech match
-        scores about half a strong music match: music still dominates the feed,
-        but tech is well clear of everything the user has shown no interest in.
-
-        Taking the best-matching interest rather than the average is the point.
-        Averaging is what collapses two interests into one blurred vector and
-        loses the minority one.
-        """
+        """Score every post against the user's best-matching interest."""
         n_posts = len(self.idx_to_post)
         if profile is None or self.post_vectors is None:
             return np.zeros(n_posts)
         if self.post_vectors.shape[1] == 0:
             return np.zeros(n_posts)
 
-        # A bare vector is still accepted so the scorer can be used standalone.
         if isinstance(profile, np.ndarray):
             return self.post_vectors @ profile
 
@@ -225,14 +188,7 @@ class ContentScorer:
     def assign_interests(
         self, profile: list[tuple[float, np.ndarray]] | np.ndarray | None
     ) -> np.ndarray | None:
-        """Label every post with the index of the interest it best matches.
-
-        Scaling each interest by its share orders the interests against each
-        other, but it does not mix them: if a user has more than `n` posts
-        matching their dominant interest, every slot still goes to that
-        interest. Proportional *representation* needs slot allocation, and that
-        needs to know which interest each post belongs to.
-        """
+        """Label every post with the index of the interest it best matches."""
         if (
             self.post_vectors is None
             or self.post_vectors.shape[1] == 0

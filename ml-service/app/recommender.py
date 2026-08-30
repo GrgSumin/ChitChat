@@ -142,23 +142,7 @@ class Recommender:
         )
 
     def _select(self, scores: np.ndarray, n: int, user_id: str) -> np.ndarray:
-        """Choose the final list, giving every interest a proportional share.
-
-        Scoring alone cannot mix interests. A user who is 61% music and 39%
-        tech has far more than ten music posts available, so ranking by score
-        fills every slot with music and the tech interest never appears --
-        exactly the behaviour that makes a feed feel narrow.
-
-        So slots are allocated in proportion to each interest's share of the
-        user's engagement, and each interest fills its own slots from its own
-        ranking. 61/39 over ten slots gives six music and four tech. Any
-        interest with a share too small to earn a slot still gets one, so a
-        minority interest is reduced rather than erased, and unclaimed slots
-        fall back to score order.
-
-        Users with a single interest skip this entirely and go to MMR, which
-        varies the list without having distinct interests to balance.
-        """
+        """Choose the final list, giving every interest a proportional share."""
         interests = self.profiles.get(user_id) if self.profiles else None
         labels = (
             self.content.assign_interests(interests)
@@ -172,15 +156,12 @@ class Recommender:
         if len(order) <= n:
             return np.array(order, dtype=int)
 
-        # Largest-remainder allocation, so the slots sum to exactly n.
         exact = [share * n for share, _ in interests]
         quota = [int(np.floor(e)) for e in exact]
         for idx in sorted(
             range(len(interests)), key=lambda i: -(exact[i] - quota[i])
         )[: n - sum(quota)]:
             quota[idx] += 1
-        # A minority interest that rounds to nothing still gets a single slot,
-        # taken from whichever interest has the most.
         for i in range(len(interests)):
             if quota[i] == 0:
                 donor = int(np.argmax(quota))
@@ -195,37 +176,14 @@ class Recommender:
         chosen: list[int] = []
         for group, want in enumerate(quota):
             chosen.extend(buckets[group][:want])
-        # Interests with too few posts leave slots unfilled; top them up in
-        # score order.
         if len(chosen) < n:
             taken = set(chosen)
             chosen.extend(i for i in order if i not in taken)
 
-        # Present them in score order so the strongest match still leads.
         return np.array(sorted(chosen[:n], key=lambda i: -scores[i]), dtype=int)
 
     def _diversify(self, scores: np.ndarray, n: int) -> np.ndarray:
-        """Re-rank by Maximal Marginal Relevance (Carbonell & Goldstein, 1998).
-
-        Ranking by score alone lets one interest take every slot: a user whose
-        history is 11 music and 6 tech posts gets a feed of 10 music posts,
-        because each slot independently goes to whatever sits closest to their
-        profile. Nothing in a pointwise ranking knows what the other slots
-        already contain.
-
-        MMR picks the list one item at a time, each time maximising
-
-            lambda * relevance  -  (1 - lambda) * max similarity to those picked
-
-        so the sixth near-identical music post loses to a tech post that is
-        still relevant but adds something. Similarity comes from the TF-IDF
-        hashtag vectors, which are already L2-normalised, so a dot product is
-        the cosine.
-
-        Falls back to plain score order when the content model is unavailable
-        (no hashtags anywhere yet), since there is then nothing to measure
-        similarity with.
-        """
+        """Re-rank by Maximal Marginal Relevance (Carbonell & Goldstein, 1998)."""
         order = np.argsort(-scores)
         finite = [int(i) for i in order if np.isfinite(scores[i])]
         if len(finite) <= 1 or n <= 1:
@@ -235,21 +193,16 @@ class Recommender:
         if vectors is None or vectors.shape[1] == 0 or MMR_LAMBDA >= 1.0:
             return np.array(finite[:n], dtype=int)
 
-        # Only the shortlist is re-ranked; the tail is appended in score order.
         pool = finite[: max(n, MMR_POOL)]
         tail = finite[len(pool):]
 
-        # Scale relevance to [0, 1] so lambda trades against cosine on equal
-        # footing -- combined scores are already small and roughly bounded, but
-        # not guaranteed to be.
         rel = scores[pool].astype(float)
         lo, hi = float(rel.min()), float(rel.max())
         rel = (rel - lo) / (hi - lo) if hi - lo > 1e-12 else np.zeros_like(rel)
 
         pool_vectors = vectors[pool]
-        selected: list[int] = [0]                       # highest score starts the list
+        selected: list[int] = [0]
         remaining = set(range(1, len(pool)))
-        # Running max similarity of each candidate to anything already chosen.
         max_sim = pool_vectors @ pool_vectors[0]
 
         while remaining and len(selected) < n:

@@ -1,4 +1,3 @@
-"""Collaborative filtering: BPR-MF (Rendle et al. 2009) via the `implicit` library."""
 
 from __future__ import annotations
 
@@ -63,10 +62,13 @@ class BPRMatrixFactorization:
 
         pairs: set[tuple[int, int]] = set()
         for x in interactions:
-            pairs.add((self.user_to_idx[x.user_id], self.post_to_idx[x.post_id]))
+            pairs.add((self.user_to_idx[x.user_id],
+                      self.post_to_idx[x.post_id]))
 
-        pos_u = np.fromiter((u for u, _ in pairs), dtype=np.int64, count=len(pairs))
-        pos_i = np.fromiter((i for _, i in pairs), dtype=np.int64, count=len(pairs))
+        pos_u = np.fromiter((u for u, _ in pairs),
+                            dtype=np.int64, count=len(pairs))
+        pos_i = np.fromiter((i for _, i in pairs),
+                            dtype=np.int64, count=len(pairs))
 
         self.user_positives = {}
         for u, i in pairs:
@@ -113,7 +115,8 @@ class BPRMatrixFactorization:
         j_arr = rng.integers(0, n_posts, size=len(idx))
 
         keep = np.array(
-            [j not in self.user_positives.get(u, ()) for u, j in zip(u_arr, j_arr)]
+            [j not in self.user_positives.get(u, ())
+             for u, j in zip(u_arr, j_arr)]
         )
         if not keep.any():
             return 0.0

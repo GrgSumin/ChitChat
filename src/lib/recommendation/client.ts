@@ -64,25 +64,11 @@ export async function fetchRecommendations(
   }
 }
 
-/**
- * Ask the ML service to retrain now, because a user just interacted.
- *
- * The service returns immediately and trains on a background thread, so this
- * costs one round trip rather than the duration of a fit. A full retrain
- * measures well under a second at this dataset size, which is what makes
- * per-interaction training viable at all -- BPR runs a fixed number of epochs
- * over every pair, so this must become debounced (or replaced with an
- * incremental fold-in) as the interaction count grows.
- *
- * Deliberately fire-and-forget: the caller has already committed the write, and
- * a retrain that fails simply means the scheduled one picks it up instead.
- */
+/** Ask the ML service to retrain now. Fire-and-forget; never throws. */
 export function requestRetrain(): void {
   void ky
     .post(`${ML_SERVICE_URL}/train`, { timeout: TIMEOUT_MS, retry: 0 })
-    .catch(() => {
-      // Unreachable or already training. The periodic retrain covers it.
-    });
+    .catch(() => {});
 }
 
 export async function fetchSimilarPosts(
