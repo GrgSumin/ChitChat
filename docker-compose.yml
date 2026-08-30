@@ -17,7 +17,9 @@ services:
       # host.docker.internal reaches the host from inside the container, which
       # is how we talk to the chitchat-db container published on host :5433.
       DATABASE_URL: ${ML_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5433/chitchat}
-      ML_RETRAIN_INTERVAL: ${ML_RETRAIN_INTERVAL:-900}
+      # Matches the default in app/config.py -- a full retrain measures under
+      # 200ms on this dataset, so a long interval only delays ranking changes.
+      ML_RETRAIN_INTERVAL: ${ML_RETRAIN_INTERVAL:-120}
     ports:
       # Host port 8001: 8000 is already taken by another local project's ML
       # container. The container still listens on 8000 internally.
