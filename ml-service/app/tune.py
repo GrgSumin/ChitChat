@@ -21,7 +21,6 @@ GRID = {
 def _score_config(
     inner_train, validation, posts, n_factors: int, reg: float, n_epochs: int, k: int = 10
 ) -> float:
-    """Mean NDCG@k on the validation fold for one hyper-parameter setting."""
     try:
         model = BPRMatrixFactorization(
             n_factors=n_factors, reg=reg, n_epochs=n_epochs
@@ -99,7 +98,6 @@ def tune(snapshot: Snapshot | None = None, verbose: bool = True) -> dict:
 def tune_weights(
     snapshot: Snapshot | None = None, step: float = 0.1, k: int = 10, verbose: bool = True
 ) -> dict:
-    """Sweep the hybrid blend weights (w_content, w_cf, w_popularity) on the SAME"""
     from app.recommender import Recommender
 
     snapshot = snapshot or load_snapshot()

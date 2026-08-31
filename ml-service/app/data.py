@@ -12,7 +12,6 @@ from app.config import DATABASE_URL
 
 @dataclass
 class Interaction:
-    """One engagement event, normalised across the three signal types."""
 
     user_id: str
     post_id: str
@@ -33,7 +32,6 @@ def _connect():
 
 
 def load_interactions() -> list[Interaction]:
-    """All likes, bookmarks and comments as a single normalised event stream."""
     sql = """
         SELECT "userId", "postId", 'like' AS kind, "createdAt"
         FROM likes
@@ -54,7 +52,6 @@ def load_interactions() -> list[Interaction]:
 
 
 def load_posts() -> list[PostMeta]:
-    """Every post with its author, timestamp and hashtag ids."""
     sql = """
         SELECT p.id,
                p."userId",
@@ -78,14 +75,12 @@ def load_posts() -> list[PostMeta]:
 
 
 def load_hashtags() -> dict[str, str]:
-    """{hashtag_id: tag} -- used for explaining recommendations."""
     with _connect() as conn, conn.cursor() as cur:
         cur.execute('SELECT id, tag FROM hashtags')
         return {r[0]: r[1] for r in cur.fetchall()}
 
 
 def load_user_interests() -> dict[str, dict[str, float]]:
-    """Explicitly declared interests: {user_id: {hashtag_id: score}}."""
     out: dict[str, dict[str, float]] = {}
     with _connect() as conn, conn.cursor() as cur:
         cur.execute('SELECT "userId", "hashtagId", score FROM user_interests')
@@ -95,8 +90,7 @@ def load_user_interests() -> dict[str, dict[str, float]]:
 
 
 def load_follows() -> dict[str, set[str]]:
-    """{follower_id: {followed_id, ...}} -- lets the explore feed exclude
-    accounts the user already follows."""
+
     out: dict[str, set[str]] = {}
     with _connect() as conn, conn.cursor() as cur:
         cur.execute('SELECT "followerId", "followingId" FROM follows')

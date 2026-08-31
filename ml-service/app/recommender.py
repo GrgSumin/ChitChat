@@ -77,8 +77,6 @@ class Recommender:
         return self
 
     def _cf_vector(self, user_id: str) -> np.ndarray | None:
-        """CF scores projected onto the canonical post ordering, NaN where the
-        model has no evidence."""
         if self.cf is None:
             return None
         raw = self.cf.score_all(user_id)
@@ -90,8 +88,7 @@ class Recommender:
         return out
 
     def component_scores(self, user_id: str) -> dict[str, np.ndarray]:
-        """Exposed for evaluate.py, which needs each scorer in isolation to
-        report the single-signal baselines."""
+
         content = self.content.score_all(self.profiles.get(user_id))
         cf = self._cf_vector(user_id)
         return {
@@ -142,7 +139,6 @@ class Recommender:
         )
 
     def _select(self, scores: np.ndarray, n: int, user_id: str) -> np.ndarray:
-        """Choose the final list, giving every interest a proportional share."""
         interests = self.profiles.get(user_id) if self.profiles else None
         labels = (
             self.content.assign_interests(interests)
@@ -221,7 +217,6 @@ class Recommender:
     def _eligibility_mask(
         self, user_id: str, feed: str, exclude_engaged: bool
     ) -> np.ndarray:
-        """Which posts are allowed to appear at all."""
         mask = np.ones(len(self.post_ids), dtype=bool)
 
         mask &= self.authors != user_id

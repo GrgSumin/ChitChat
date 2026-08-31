@@ -21,8 +21,7 @@ from app.train import train
 
 
 class _State:
-    """Mutable service state, deliberately kept in one object so the retrain
-    thread has a single well-defined thing to swap."""
+
 
     def __init__(self):
         self.rec: Recommender | None = None
@@ -36,7 +35,6 @@ _train_lock = threading.Lock()
 
 
 def _retrain() -> None:
-    """Train and atomically publish. Never raises into the caller's thread."""
     if not _train_lock.acquire(blocking=False):
         return
     try:

@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import ExploreFeed from "./ExploreFeed";
+import TrendingTopicsGrid from "./TrendingTopicsGrid";
 
 export const metadata: Metadata = {
   title: "Explore",
@@ -14,6 +15,7 @@ export default function ExplorePage() {
           Posts we think you&apos;ll like, from people you don&apos;t follow yet.
         </p>
       </div>
+      <TrendingTopicsGrid />
       <ExploreFeed />
     </div>
   );

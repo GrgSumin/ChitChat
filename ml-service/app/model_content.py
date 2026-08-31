@@ -69,7 +69,6 @@ class ContentScorer:
         return mat / norms
 
     def build_user_profiles(self) -> dict[str, np.ndarray]:
-        """Precompute every user's profile vector once per training run."""
         if self.post_vectors is None or self.post_vectors.shape[1] == 0:
             return {}
         n_tags = self.post_vectors.shape[1]
@@ -113,7 +112,8 @@ class ContentScorer:
             if d is not None:
                 if interests:
                     interests = [
-                        (share, _unit(BEHAVIOUR_ALPHA * vec + (1 - BEHAVIOUR_ALPHA) * d))
+                        (share, _unit(BEHAVIOUR_ALPHA *
+                         vec + (1 - BEHAVIOUR_ALPHA) * d))
                         for share, vec in interests
                     ]
                 else:
@@ -129,7 +129,6 @@ class ContentScorer:
         threshold: float = 0.30,
         max_interests: int = 4,
     ) -> list[tuple[float, np.ndarray]]:
-        """Group a user's engagement into separate interests by similarity."""
         if not engaged:
             return []
 
@@ -188,7 +187,6 @@ class ContentScorer:
     def assign_interests(
         self, profile: list[tuple[float, np.ndarray]] | np.ndarray | None
     ) -> np.ndarray | None:
-        """Label every post with the index of the interest it best matches."""
         if (
             self.post_vectors is None
             or self.post_vectors.shape[1] == 0

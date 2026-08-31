@@ -106,7 +106,6 @@ class BPRMatrixFactorization:
     def _train_auc(
         self, pos_u: np.ndarray, pos_i: np.ndarray, n_posts: int, n_samples: int = 20_000
     ) -> float:
-        """Fraction of sampled (user, positive, negative) triples the model already"""
         if self.P is None or self.Q is None or len(pos_u) == 0:
             return 0.0
 
@@ -156,7 +155,6 @@ class BPRMatrixFactorization:
         return out
 
     def save(self, path: str) -> None:
-        """Saved as .npz rather than pickle on purpose: unpickling executes"""
         np.savez_compressed(
             path,
             format_version=MODEL_FORMAT_VERSION,

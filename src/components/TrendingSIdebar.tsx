@@ -4,15 +4,17 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import UserAvatar from "./ui/UserAvatar";
-import { unstable_cache } from "next/cache";
+import { getTrendingTopics } from "@/lib/trending";
 import { formatNumber } from "@/lib/utils";
 import FollowButton from "./FollowButton";
 import { getUserDataSelect } from "@/lib/types";
 import UserTooltip from "./UserTooltip";
+import WhosOnline from "./WhosOnline";
 
 export default function TrendingSidebar() {
   return (
     <aside className="sticky top-20 hidden h-fit w-72 flex-none space-y-5 xl:block xl:w-80">
+      <WhosOnline />
       <Suspense fallback={<Loader2 className="mx-auto size-5 animate-spin" />}>
         <PeopleToFollow />
         <TrendingTopics />
@@ -71,29 +73,9 @@ async function PeopleToFollow() {
     </div>
   );
 }
-//unstable_cache is actually cached in our server(next js feature) this allows is to actually cach an oepration between multiple req and user
-const getTrendingTopics = unstable_cache(
-  async () => {
-    const result = await prisma.$queryRaw<{ hashtag: string; count: bigint }[]>`
-    SELECT LOWER(unnest(regexp_matches(content, '#[[:alnum:]_]+','g'))) AS hashtag, COUNT(*) AS count
-    FROM post
-    GROUP BY (hashtag)
-    ORDER BY count DESC, hashtag ASC
-    LIMIT 5
-    `;
-    return result.map((row) => ({
-      hashtag: row.hashtag,
-      count: Number(row.count),
-    }));
-  },
-  ["trending_topics"],
-  {
-    revalidate: 3 * 60 * 60,
-  },
-);
 //#[[:almnum]_]+ regular exparession for searching hashtag(#)
 async function TrendingTopics() {
-  const trendingTopics = await getTrendingTopics();
+  const trendingTopics = await getTrendingTopics(5);
   return (
     <div className="bg-card border-border space-y-5 rounded-2xl border p-5 shadow-sm">
       <h2 className="text-foreground text-lg font-bold">Trending topics</h2>

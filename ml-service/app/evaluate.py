@@ -19,7 +19,6 @@ STRATEGIES = ["random", "popularity", "content", "cf", "hybrid"]
 def temporal_split(
     interactions: list[Interaction], test_fraction: float = TEST_FRACTION
 ) -> tuple[list[Interaction], list[Interaction]]:
-    """Oldest (1-f) train, newest f test. Ties broken deterministically."""
     ordered = sorted(interactions, key=lambda x: (x.created_at, x.user_id, x.post_id))
     cut = int(len(ordered) * (1.0 - test_fraction))
     return ordered[:cut], ordered[cut:]
@@ -59,9 +58,7 @@ class MetricAccumulator:
         self.ndcg.setdefault(k, []).append(ndcg_at_k(recommended, relevant, k))
         self.recommended_items.setdefault(k, set()).update(top)
         if top:
-            # A post with no training interactions is the MOST novel thing we can
-            # recommend, not the least -- defaulting to 0.0 would read as
-            # "maximally popular" and understate the novelty of exploratory lists.
+
             self.novelty.setdefault(k, []).append(
                 float(np.mean([item_pop.get(pid, max_novelty) for pid in top]))
             )
@@ -113,18 +110,7 @@ def holdout_auc(
     n_negatives: int = 100,
     seed: int = SEED,
 ) -> dict:
-    """Fraction of (held-out positive, random negative) pairs the CF model ranks
-    the right way round.
 
-    BPR optimises pairwise order, so AUC measures exactly what it is trained to
-    do -- unlike precision@k, which only inspects the head of the list. This is
-    the TEST counterpart of `BPRMatrixFactorization._train_auc`: that one scores
-    pairs the model fitted on and is therefore optimistically biased, so the two
-    should never be quoted interchangeably.
-    """
-    # A post the user touched in EITHER split is a true positive. Sampling one as
-    # a "negative" would penalise the model for being right, so both splits feed
-    # the exclusion set.
     touched: dict[str, set[str]] = {}
     for x in train + test:
         touched.setdefault(x.user_id, set()).add(x.post_id)
@@ -136,8 +122,7 @@ def holdout_auc(
     for x in test:
         scores = model.score_all(x.user_id)
         col = model.post_to_idx.get(x.post_id)
-        # Cold-start user, or a post created after the training cut -- the model
-        # has no vector for it, so there is nothing to score.
+      
         if scores is None or col is None:
             skipped += 1
             continue

@@ -10,16 +10,20 @@ import { Loader2, Users } from "lucide-react";
 import InfiniteScrollContainer from "@/components/InfiniteScrollContainer";
 import { cn } from "@/lib/utils";
 import UserAvatar from "@/components/ui/UserAvatar";
+import { useEffect, useMemo, useRef } from "react";
 
 interface ChatSidebarProps {
   selectedChatId: string | null;
   onSelect: (chat: ChatData) => void;
+  /** Chat id from ?chat= -- opened once the chat list has loaded. */
+  autoSelectChatId?: string | null;
   className?: string;
 }
 
 export default function ChatSidebar({
   selectedChatId,
   onSelect,
+  autoSelectChatId,
   className,
 }: ChatSidebarProps) {
   const { user } = useSession();
@@ -39,7 +43,20 @@ export default function ChatSidebar({
       getNextPageParam: (lastpage) => lastpage.nextCursor,
     });
 
-  const chats = data?.pages.flatMap((page) => page.chats) || [];
+  const chats = useMemo(
+    () => data?.pages.flatMap((page) => page.chats) || [],
+    [data],
+  );
+
+ 
+  const handled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoSelectChatId || handled.current === autoSelectChatId) return;
+    const match = chats.find((c) => c.id === autoSelectChatId);
+    if (!match) return;
+    handled.current = autoSelectChatId;
+    onSelect(match);
+  }, [autoSelectChatId, chats, onSelect]);
 
   return (
     <div className={className}>

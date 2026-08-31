@@ -4,11 +4,6 @@ import os
 
 from dotenv import load_dotenv
 
-# The Next.js app owns the single .env at the repo root, and DATABASE_URL lives
-# there. Under docker compose the variable is injected, but running the CLI
-# entrypoints directly (`python -m app.evaluate`) would otherwise fall through to
-# the placeholder below and fail authentication against a real database.
-# `override=False` keeps an explicitly exported variable winning over the file.
 load_dotenv(
     os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=False
 )

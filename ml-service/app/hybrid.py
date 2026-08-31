@@ -23,8 +23,7 @@ def _now() -> datetime:
 
 
 def _as_aware(dt: datetime) -> datetime:
-    """Postgres `timestamp(3) without time zone` comes back naive; treat it as
-    UTC so arithmetic against an aware `now` does not raise."""
+
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
@@ -49,7 +48,8 @@ class PopularityScorer:
         now = _now()
         decay = np.ones(len(posts))
         for n, p in enumerate(posts):
-            age_days = (now - _as_aware(p.created_at)).total_seconds() / 86400.0
+            age_days = (now - _as_aware(p.created_at)
+                        ).total_seconds() / 86400.0
             decay[n] = 0.5 ** (max(age_days, 0.0) / self.half_life_days)
 
         self.scores = np.log1p(raw) * decay
@@ -120,7 +120,6 @@ def combine(
     n_interactions: int,
     base_weights: tuple[float, float, float] | None = None,
 ) -> tuple[np.ndarray, dict[str, float]]:
-    """Normalise, weight and sum. All three inputs must be aligned to the SAME"""
     w_content, w_cf, w_pop = blend_weights(n_interactions, base_weights)
 
     combined = w_content * min_max(content) + w_pop * min_max(popularity)
